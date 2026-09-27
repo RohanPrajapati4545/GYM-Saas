@@ -78,7 +78,7 @@ const Dashboard = () => {
               <div className="stat-card">
                 <div className="stat-header">
                   <span className="stat-title">Active Members</span>
-                  <div className="stat-icon-wrapper cyan">
+                  <div className="stat-icon-wrapper red">
                     <Users size={20} />
                   </div>
                 </div>
@@ -658,12 +658,12 @@ const Dashboard = () => {
       {/* Sidebar */}
       <aside className="dashboard-sidebar">
         <div className="sidebar-brand">
-          <div className="brand-logo-badge">
-            <Dumbbell size={22} className="brand-icon" />
+          <div className="logo-symbol">
+            <Dumbbell size={20} />
           </div>
-          <div className="brand-text">
-            <span className="brand-name">IronPulse</span>
-            <span className="brand-tag">Gym SaaS</span>
+          <div className="logo-text-block">
+            <span className="logo-title" style={{ fontSize: '1.4rem' }}>XTREME FITNESS</span>
+            <span className="logo-subtitle">OWNER PORTAL</span>
           </div>
         </div>
 

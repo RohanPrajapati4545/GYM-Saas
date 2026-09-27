@@ -10,14 +10,12 @@ const Login = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useSelector((state) => state.auth);
 
-  // Redirect if already authenticated
   React.useEffect(() => {
     if (isAuthenticated) {
       navigate('/dashboard', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
-  // Form local state (only input fields and local UI feedback)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -37,7 +35,6 @@ const Login = () => {
     e.preventDefault();
     const { email, password } = formData;
 
-    // Client-side validation
     if (!email.trim()) {
       setError('Email address is required');
       return;
@@ -51,7 +48,7 @@ const Login = () => {
     setError('');
 
     try {
-      // Step 1: POST /api/auth/login
+      // 1. POST /api/auth/login
       const loginResponse = await api.post('/api/auth/login', {
         email: email.trim().toLowerCase(),
         password,
@@ -59,26 +56,25 @@ const Login = () => {
 
       const { token, user } = loginResponse.data;
 
-      // Step 2: Store JWT in localStorage
+      // 2. Store JWT in localStorage
       localStorage.setItem('token', token);
 
-      // Step 3: Dispatch Redux action to set authentication state
+      // 3. Dispatch Redux action
       dispatch(setCredentials({ user, token }));
 
-      // Step 4: Call GET /api/auth/me to fetch full verified user profile
+      // 4. Call GET /api/auth/me
       try {
         const meResponse = await api.get('/api/auth/me');
-        // Step 5: Update Redux user with the response
         dispatch(setUser(meResponse.data));
       } catch (meError) {
         console.warn('Could not fetch updated /me profile, using login response user:', meError);
       }
 
-      // Step 6: Redirect to dashboard
+      // 5. Redirect to dashboard
       navigate('/dashboard', { replace: true });
     } catch (err) {
       const errorMessage =
-        err.response?.data?.message || 'Login failed. Please check your credentials and try again.';
+        err.response?.data?.message || 'Invalid email or password. Please check and try again.';
       setError(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -86,36 +82,38 @@ const Login = () => {
   };
 
   return (
-    <div className="auth-page-container">
-      <div className="auth-card-wrapper">
-        <div className="auth-header">
-          <div className="brand-logo-badge">
-            <Dumbbell className="brand-icon" size={28} />
+    <div className="xtreme-auth-container">
+      <div className="xtreme-auth-card">
+        <div className="auth-header-block">
+          <div className="logo-symbol" style={{ margin: '0 auto' }}>
+            <Dumbbell size={24} />
           </div>
-          <h1 className="auth-title">Welcome Back</h1>
-          <p className="auth-subtitle">Sign in to manage your Gym SaaS platform</p>
+          <h1 className="auth-headline">
+            SIGN IN TO <span className="text-red">XTREME</span>
+          </h1>
+          <p className="auth-subtext">Access your Gym SaaS Owner Dashboard</p>
         </div>
 
         {error && (
-          <div className="alert-error" role="alert">
+          <div className="auth-error-banner" role="alert">
             <AlertCircle size={18} />
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="auth-form" noValidate>
-          <div className="form-group">
-            <label htmlFor="email" className="form-label">
-              Email Address
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="form-group-athletic">
+            <label htmlFor="email" className="label-athletic">
+              Owner Email Address
             </label>
-            <div className="input-with-icon">
-              <Mail className="input-icon" size={18} />
+            <div className="input-athletic-wrapper">
+              <Mail className="input-icon-athletic" size={18} />
               <input
                 id="email"
                 type="email"
                 name="email"
-                className="form-input"
-                placeholder="owner@gymsaas.com"
+                className="input-athletic"
+                placeholder="owner@xtremefitness.com"
                 value={formData.email}
                 onChange={handleChange}
                 autoComplete="email"
@@ -125,19 +123,17 @@ const Login = () => {
             </div>
           </div>
 
-          <div className="form-group">
-            <div className="form-label-row">
-              <label htmlFor="password" className="form-label">
-                Password
-              </label>
-            </div>
-            <div className="input-with-icon">
-              <Lock className="input-icon" size={18} />
+          <div className="form-group-athletic">
+            <label htmlFor="password" className="label-athletic">
+              Password
+            </label>
+            <div className="input-athletic-wrapper">
+              <Lock className="input-icon-athletic" size={18} />
               <input
                 id="password"
                 type="password"
                 name="password"
-                className="form-input"
+                className="input-athletic"
                 placeholder="••••••••"
                 value={formData.password}
                 onChange={handleChange}
@@ -150,36 +146,37 @@ const Login = () => {
 
           <button
             type="submit"
-            className="btn-primary auth-submit-btn"
+            className="btn-red"
+            style={{ width: '100%', marginTop: '10px' }}
             disabled={isSubmitting}
             id="login-submit-btn"
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="spinner-icon animate-spin" size={18} />
-                <span>Signing in...</span>
+                <Loader2 className="animate-spin" size={18} />
+                <span>Authenticating...</span>
               </>
             ) : (
               <>
-                <span>Sign In</span>
+                <span>Sign In to Dashboard</span>
                 <ArrowRight size={18} />
               </>
             )}
           </button>
         </form>
 
-        <div className="auth-footer">
+        <div className="auth-bottom-links">
           <p>
-            Don't have an account yet?{' '}
-            <Link to="/register" className="auth-link">
-              Register as Gym Owner
+            Don't have a gym account yet?{' '}
+            <Link to="/register" className="auth-link-red">
+              Register Gym Owner
             </Link>
           </p>
-          <div className="auth-back-link">
-            <Link to="/" className="back-link">
+          <p style={{ marginTop: '12px' }}>
+            <Link to="/" style={{ color: '#8b949e', fontSize: '0.82rem' }}>
               ← Return to Home
             </Link>
-          </div>
+          </p>
         </div>
       </div>
     </div>

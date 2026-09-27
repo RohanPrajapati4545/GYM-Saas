@@ -4,118 +4,167 @@ import { useSelector } from 'react-redux';
 import {
   Dumbbell,
   ArrowRight,
+  Play,
   Shield,
-  Users,
-  Activity,
   Building2,
-  Sparkles,
+  Activity,
+  Flame,
 } from 'lucide-react';
 
 const Landing = () => {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
 
   return (
-    <div className="landing-layout">
-      {/* Navigation */}
-      <header className="landing-header">
-        <div className="landing-brand">
-          <div className="brand-logo-badge">
-            <Dumbbell size={24} className="brand-icon" />
+    <div className="xtreme-landing">
+      {/* Top Navbar */}
+      <header className="xtreme-navbar">
+        <Link to="/" className="xtreme-logo">
+          <div className="logo-symbol">
+            <Dumbbell size={24} />
           </div>
-          <span className="landing-brand-title">IronPulse SaaS</span>
-        </div>
+          <div className="logo-text-block">
+            <span className="logo-title">XTREME FITNESS</span>
+            <span className="logo-subtitle">SaaS GYM PLATFORM</span>
+          </div>
+        </Link>
 
-        <div className="landing-nav-actions">
+        <nav className="xtreme-nav-links">
+          <a href="#home" className="active">Home</a>
+          <a href="#about">About</a>
+          <a href="#services">Services</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#features">Pages</a>
+          <a href="#contact">Contact</a>
+        </nav>
+
+        <div className="xtreme-nav-actions">
           {isAuthenticated ? (
-            <Link to="/dashboard" className="btn-primary">
-              <span>Go to Dashboard ({user?.name || 'Owner'})</span>
+            <Link to="/dashboard" className="btn-red">
+              <span>Dashboard ({user?.name?.split(' ')[0] || 'Owner'})</span>
               <ArrowRight size={16} />
             </Link>
           ) : (
-            <div className="auth-btn-group">
-              <Link to="/login" className="btn-secondary">
+            <>
+              <Link to="/login" className="btn-outline-red">
                 Sign In
               </Link>
-              <Link to="/register" className="btn-primary">
-                <span>Start Free Trial</span>
+              <Link to="/register" className="btn-red">
+                <span>Join Us Now</span>
                 <ArrowRight size={16} />
               </Link>
-            </div>
+            </>
           )}
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="hero-section">
-        <div className="hero-badge">
-          <Sparkles size={16} className="text-amber" />
-          <span>Next-Generation Multi-Tenant Gym Architecture</span>
-        </div>
-        <h1 className="hero-title">
-          Scale Your Fitness Empire with <span className="text-gradient">Intelligent SaaS</span>
-        </h1>
-        <p className="hero-description">
-          The all-in-one platform built specifically for Gym Owners, Franchise Chains, and Fitness Studios.
-          Manage multi-location branches, memberships, trainers, payments, and real-time attendance effortlessly.
-        </p>
-
-        <div className="hero-cta-group">
-          <Link to="/register" className="btn-primary hero-btn">
-            <span>Register Gym Owner Account</span>
-            <ArrowRight size={18} />
-          </Link>
-          <Link to="/login" className="btn-secondary hero-btn">
-            <span>Access Existing Facility</span>
-          </Link>
-        </div>
-      </section>
-
-      {/* Feature Highlights Grid */}
-      <section className="features-section">
-        <div className="section-header-centered">
-          <h2 className="section-title">Built for Performance & Scale</h2>
-          <p className="section-subtitle">Everything a Gym Owner needs in a single unified dashboard</p>
+      <section className="xtreme-hero" id="home">
+        {/* Left Vertical Social Links */}
+        <div className="hero-social-sidebar">
+          <a href="#facebook" className="social-icon-link" title="Facebook">f</a>
+          <a href="#twitter" className="social-icon-link" title="Twitter">t</a>
+          <a href="#google" className="social-icon-link" title="Google+">G+</a>
+          <a href="#instagram" className="social-icon-link" title="Instagram">in</a>
+          <div className="social-divider"></div>
         </div>
 
-        <div className="features-grid">
-          <div className="feature-card">
-            <div className="feature-icon cyan">
-              <Building2 size={24} />
+        {/* Main Hero Content */}
+        <div className="hero-content-wrapper">
+          <div className="hero-left-text">
+            <span className="hero-brand-tag">XTREME FITNESS</span>
+            <h1 className="hero-headline-massive">
+              BE <span className="text-gradient-red">STRONG</span>
+            </h1>
+            <p className="hero-subheadline">
+              Best GYM & Fitness Center Build Your Health. Next-gen multi-branch management for Gym Owners.
+            </p>
+
+            <div className="hero-actions-row">
+              <Link to="/register" className="btn-red">
+                <span>Join Us Now</span>
+                <ArrowRight size={18} />
+              </Link>
+
+              <div className="hero-play-action" onClick={() => window.open('https://youtube.com', '_blank')}>
+                <button className="btn-circle-play" aria-label="Play tour video">
+                  <Play size={20} fill="#ffffff" />
+                </button>
+                <span className="play-text">Watch Video</span>
+              </div>
             </div>
-            <h3>Multi-Branch Control</h3>
-            <p>Centrally administer multiple locations, staff permissions, and room capacities with tenant isolation.</p>
           </div>
 
-          <div className="feature-card">
-            <div className="feature-icon emerald">
-              <Users size={24} />
+          {/* Center / Right Hero Athlete Visual */}
+          <div className="hero-right-visual">
+            <div className="athlete-stage">
+              <div className="athlete-glow-backdrop"></div>
+              <img
+                src="/hero-athlete.png"
+                alt="XTREME Fitness Athlete Overhead Barbell Squat"
+                className="athlete-img"
+              />
             </div>
-            <h3>Member Subscriptions</h3>
-            <p>Automate recurring billing, freeze passes, and manage custom plans with integrated Stripe auto-pay.</p>
           </div>
+        </div>
 
-          <div className="feature-card">
-            <div className="feature-icon amber">
-              <Activity size={24} />
-            </div>
-            <h3>Real-Time IoT Attendance</h3>
-            <p>Connect turnstiles, biometric scanners, and RFID readers with millisecond verification telemetry.</p>
-          </div>
-
-          <div className="feature-card">
-            <div className="feature-icon purple">
-              <Shield size={24} />
-            </div>
-            <h3>Role-Based Security</h3>
-            <p>JWT protected RBAC with microservices authentication ensuring zero privilege leaks across tenants.</p>
-          </div>
+        {/* Hero Slider Dashes */}
+        <div className="hero-slider-dashes">
+          <span className="dash-item active"></span>
+          <span className="dash-item"></span>
+          <span className="dash-item"></span>
+          <span className="dash-item"></span>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="landing-footer">
-        <p>© 2026 IronPulse SaaS Platform. Built with Redux Toolkit & Express Microservices.</p>
-      </footer>
+      {/* Features & SaaS Grid */}
+      <section className="xtreme-section" id="services">
+        <div className="section-title-wrap">
+          <p className="section-tag">UNLEASH POWER</p>
+          <h2 className="section-heading-huge">POWERFUL CAPABILITIES FOR YOUR GYM</h2>
+        </div>
+
+        <div className="xtreme-features-grid">
+          <div className="xtreme-feature-card">
+            <div className="feature-icon-badge">
+              <Building2 size={28} />
+            </div>
+            <h3 className="feature-title">Multi-Branch Facilities</h3>
+            <p className="feature-desc">
+              Manage unlimited gym branches under one master franchise roof. Track capacity, room equipment, and manager rosters.
+            </p>
+          </div>
+
+          <div className="xtreme-feature-card">
+            <div className="feature-icon-badge">
+              <Flame size={28} />
+            </div>
+            <h3 className="feature-title">Athletic Memberships</h3>
+            <p className="feature-desc">
+              Offer customized pass tiers, automated recurring subscription billings, day passes, and personal trainer add-ons.
+            </p>
+          </div>
+
+          <div className="xtreme-feature-card">
+            <div className="feature-icon-badge">
+              <Activity size={28} />
+            </div>
+            <h3 className="feature-title">RFID & Biometric Gates</h3>
+            <p className="feature-desc">
+              Sub-second gate turnstile verification, IoT attendance telemetry, and live facility headcounts in real-time.
+            </p>
+          </div>
+
+          <div className="xtreme-feature-card">
+            <div className="feature-icon-badge">
+              <Shield size={28} />
+            </div>
+            <h3 className="feature-title">Role-Based Security</h3>
+            <p className="feature-desc">
+              Dedicated GYM_OWNER administration with microservices JWT isolation ensuring ironclad tenant data security.
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };

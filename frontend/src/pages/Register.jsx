@@ -40,15 +40,15 @@ const Register = () => {
     const { name, email, password, confirmPassword } = formData;
 
     if (!name.trim()) {
-      setError('Gym or Owner Name is required');
+      setError('Gym or Franchise Name is required');
       return;
     }
     if (!email.trim()) {
-      setError('Email address is required');
+      setError('Owner Email address is required');
       return;
     }
     if (!EMAIL_REGEX.test(email.trim().toLowerCase())) {
-      setError('Please provide a valid email address');
+      setError('Please provide a valid email format');
       return;
     }
     if (!password) {
@@ -56,7 +56,7 @@ const Register = () => {
       return;
     }
     if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
+      setError('Password must be at least 6 characters');
       return;
     }
     if (password !== confirmPassword) {
@@ -68,7 +68,6 @@ const Register = () => {
     setError('');
 
     try {
-      // POST /api/auth/register
       const response = await api.post('/api/auth/register', {
         name: name.trim(),
         email: email.trim().toLowerCase(),
@@ -102,36 +101,38 @@ const Register = () => {
   };
 
   return (
-    <div className="auth-page-container">
-      <div className="auth-card-wrapper register-card">
-        <div className="auth-header">
-          <div className="brand-logo-badge">
-            <Dumbbell className="brand-icon" size={28} />
+    <div className="xtreme-auth-container">
+      <div className="xtreme-auth-card register-wide">
+        <div className="auth-header-block">
+          <div className="logo-symbol" style={{ margin: '0 auto' }}>
+            <Dumbbell size={24} />
           </div>
-          <h1 className="auth-title">Register Your Gym</h1>
-          <p className="auth-subtitle">Create a Gym Owner account to launch your SaaS platform</p>
+          <h1 className="auth-headline">
+            LAUNCH YOUR <span className="text-red">GYM</span>
+          </h1>
+          <p className="auth-subtext">Register as GYM_OWNER for full SaaS management</p>
         </div>
 
         {error && (
-          <div className="alert-error" role="alert">
+          <div className="auth-error-banner" role="alert">
             <AlertCircle size={18} />
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="auth-form" noValidate>
-          <div className="form-group">
-            <label htmlFor="name" className="form-label">
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="form-group-athletic">
+            <label htmlFor="name" className="label-athletic">
               Gym / Owner Name
             </label>
-            <div className="input-with-icon">
-              <User className="input-icon" size={18} />
+            <div className="input-athletic-wrapper">
+              <User className="input-icon-athletic" size={18} />
               <input
                 id="name"
                 type="text"
                 name="name"
-                className="form-input"
-                placeholder="Titan Fitness Club"
+                className="input-athletic"
+                placeholder="Xtreme Power Club"
                 value={formData.name}
                 onChange={handleChange}
                 disabled={isSubmitting}
@@ -140,18 +141,18 @@ const Register = () => {
             </div>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="email" className="form-label">
-              Owner Email Address
+          <div className="form-group-athletic">
+            <label htmlFor="email" className="label-athletic">
+              Owner Email
             </label>
-            <div className="input-with-icon">
-              <Mail className="input-icon" size={18} />
+            <div className="input-athletic-wrapper">
+              <Mail className="input-icon-athletic" size={18} />
               <input
                 id="email"
                 type="email"
                 name="email"
-                className="form-input"
-                placeholder="owner@titanfitness.com"
+                className="input-athletic"
+                placeholder="owner@xtremepower.com"
                 value={formData.email}
                 onChange={handleChange}
                 autoComplete="email"
@@ -161,17 +162,17 @@ const Register = () => {
             </div>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="password" className="form-label">
-              Password (min. 6 characters)
+          <div className="form-group-athletic">
+            <label htmlFor="password" className="label-athletic">
+              Password (min. 6 chars)
             </label>
-            <div className="input-with-icon">
-              <Lock className="input-icon" size={18} />
+            <div className="input-athletic-wrapper">
+              <Lock className="input-icon-athletic" size={18} />
               <input
                 id="password"
                 type="password"
                 name="password"
-                className="form-input"
+                className="input-athletic"
                 placeholder="••••••••"
                 value={formData.password}
                 onChange={handleChange}
@@ -182,17 +183,17 @@ const Register = () => {
             </div>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="confirmPassword" className="form-label">
+          <div className="form-group-athletic">
+            <label htmlFor="confirmPassword" className="label-athletic">
               Confirm Password
             </label>
-            <div className="input-with-icon">
-              <Lock className="input-icon" size={18} />
+            <div className="input-athletic-wrapper">
+              <Lock className="input-icon-athletic" size={18} />
               <input
                 id="confirmPassword"
                 type="password"
                 name="confirmPassword"
-                className="form-input"
+                className="input-athletic"
                 placeholder="••••••••"
                 value={formData.confirmPassword}
                 onChange={handleChange}
@@ -203,43 +204,44 @@ const Register = () => {
             </div>
           </div>
 
-          <div className="role-guarantee-badge">
-            <CheckCircle2 size={16} className="badge-icon" />
-            <span>Account will be configured with <strong>GYM_OWNER</strong> role & full multi-branch access</span>
+          <div className="role-notice-card">
+            <CheckCircle2 size={18} className="text-red" />
+            <span>Account automatically granted <strong>GYM_OWNER</strong> role & full multi-branch scope</span>
           </div>
 
           <button
             type="submit"
-            className="btn-primary auth-submit-btn"
+            className="btn-red"
+            style={{ width: '100%' }}
             disabled={isSubmitting}
             id="register-submit-btn"
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="spinner-icon animate-spin" size={18} />
-                <span>Creating Account...</span>
+                <Loader2 className="animate-spin" size={18} />
+                <span>Creating Facility Account...</span>
               </>
             ) : (
               <>
-                <span>Get Started Free</span>
+                <span>Register Gym & Get Started</span>
                 <ArrowRight size={18} />
               </>
             )}
           </button>
         </form>
 
-        <div className="auth-footer">
+        <div className="auth-bottom-links">
           <p>
             Already registered?{' '}
-            <Link to="/login" className="auth-link">
-              Sign In to Your Gym
+            <Link to="/login" className="auth-link-red">
+              Sign In to Your Facility
             </Link>
           </p>
-          <div className="auth-back-link">
-            <Link to="/" className="back-link">
+          <p style={{ marginTop: '12px' }}>
+            <Link to="/" style={{ color: '#8b949e', fontSize: '0.82rem' }}>
               ← Return to Home
             </Link>
-          </div>
+          </p>
         </div>
       </div>
     </div>
