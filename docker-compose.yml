@@ -1,0 +1,16 @@
+services:
+  mongodb:
+    image: mongo:8
+    container_name: gym-auth-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+      MONGO_INITDB_DATABASE: gym_auth_db
+    ports:
+      - "27018:27017"
+    volumes:
+      - gym_auth_mongo_data:/data/db
+
+volumes:
+  gym_auth_mongo_data:
