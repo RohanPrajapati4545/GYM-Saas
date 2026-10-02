@@ -1,0 +1,9 @@
+export { default as SuperAdminLogin } from '../admin/AdminLogin';
+export { default as SuperAdminDashboard } from '../admin/AdminDashboard';
+export { default as SuperAdminGyms } from '../admin/AdminGyms';
+export { default as SuperAdminBranches } from '../admin/AdminBranches';
+export { default as SuperAdminUsers } from '../admin/AdminUsers';
+export { default as SuperAdminPlans } from '../admin/AdminPlans';
+export { default as SuperAdminInquiries } from '../admin/AdminInquiries';
+export { default as SuperAdminCMS } from '../admin/AdminCMS';
+export { default as SuperAdminSettings } from '../admin/AdminSettings';

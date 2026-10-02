@@ -1,7 +1,7 @@
 services:
   mongodb:
     image: mongo:8
-    container_name: gym-auth-mongodb
+    container_name: gym-mongodb
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
@@ -11,6 +11,68 @@ services:
       - "27018:27017"
     volumes:
       - gym_auth_mongo_data:/data/db
+    networks:
+      - gym-saas-network
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: gym-auth-service
+    restart: unless-stopped
+    environment:
+      PORT: 5001
+      MONGO_URI: mongodb://admin:admin@mongodb:27017/gym_auth_db?authSource=admin
+      JWT_SECRET: gym_saas_secret_key
+      JWT_EXPIRE: 7d
+    ports:
+      - "5001:5001"
+    depends_on:
+      - mongodb
+    networks:
+      - gym-saas-network
+
+  super-admin-service:
+    build:
+      context: ./services/super-admin-service
+      dockerfile: Dockerfile
+    container_name: gym-super-admin-service
+    restart: unless-stopped
+    environment:
+      PORT: 5002
+      MONGO_URI: mongodb://admin:admin@mongodb:27017/gym_super_admin_db?authSource=admin
+      JWT_SECRET: gym_saas_secret_key
+      JWT_EXPIRE: 7d
+      AUTH_SERVICE_URL: http://auth-service:5001
+    ports:
+      - "5002:5002"
+    depends_on:
+      - mongodb
+      - auth-service
+    networks:
+      - gym-saas-network
+  gym-owner-service:
+    build:
+      context: ./services/gym-owner-service
+      dockerfile: Dockerfile
+    container_name: gym-owner-service
+    restart: unless-stopped
+    environment:
+      PORT: 5003
+      MONGO_URI: mongodb://admin:admin@mongodb:27017/gym_owner_db?authSource=admin
+      JWT_SECRET: gym_saas_secret_key
+      AUTH_SERVICE_URL: http://auth-service:5001
+    ports:
+      - "5003:5003"
+    depends_on:
+      - mongodb
+      - auth-service
+    networks:
+      - gym-saas-network
 
 volumes:
   gym_auth_mongo_data:
+
+networks:
+  gym-saas-network:
+    driver: bridge

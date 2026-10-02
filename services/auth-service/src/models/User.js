@@ -14,14 +14,22 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    phone: {
+      type: String,
+      default: "",
+    },
     password: {
       type: String,
       required: [true, "Password is required"],
     },
     role: {
       type: String,
-      enum: ["SUPER_ADMIN", "GYM_OWNER", "BRANCH_MANAGER", "STAFF", "TRAINER", "MEMBER"],
+      enum: ["SUPER_ADMIN", "GYM_OWNER", "BRANCH_MANAGER", "STAFF", "TRAINER", "MEMBER", "CUSTOMER", "RECEPTIONIST"],
       default: "GYM_OWNER",
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
     },
     tenantId: {
       type: mongoose.Schema.Types.ObjectId,

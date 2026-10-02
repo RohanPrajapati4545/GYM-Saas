@@ -8,6 +8,8 @@ const generateToken = (user) => {
   return jwt.sign(
     {
       userId: user._id,
+      email: user.email,
+      name: user.name,
       role: user.role,
       tenantId: user.tenantId,
       branchId: user.branchId,
@@ -22,6 +24,7 @@ const formatUserResponse = (user) => {
     id: user._id,
     name: user.name,
     email: user.email,
+    phone: user.phone || '',
     role: user.role,
     tenantId: user.tenantId,
     branchId: user.branchId,
@@ -32,7 +35,7 @@ const formatUserResponse = (user) => {
 
 const register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, phone } = req.body;
 
     if (!name || typeof name !== "string" || name.trim() === "") {
       return res.status(400).json({ message: "Name is required" });
@@ -67,6 +70,7 @@ const register = async (req, res) => {
     const user = new User({
       name: name.trim(),
       email: normalizedEmail,
+      phone: phone ? String(phone).trim() : "",
       password: hashedPassword,
       role: "GYM_OWNER",
       tenantId: null,

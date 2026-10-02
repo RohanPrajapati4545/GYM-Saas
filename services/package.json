@@ -1,0 +1,11 @@
+{
+  "name": "gym-saas-services",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:auth": "npm run dev --prefix auth-service",
+    "dev:admin": "npm run dev --prefix super-admin-service",
+    "dev:owner": "npm run dev --prefix gym-owner-service",
+    "dev": "npx concurrently -n \"AUTH,SUPER-ADMIN,GYM-OWNER\" -c \"blue,magenta,green\" \"npm run dev:auth\" \"npm run dev:admin\" \"npm run dev:owner\""
+  }
+}

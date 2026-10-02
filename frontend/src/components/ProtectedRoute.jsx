@@ -16,7 +16,15 @@ const ProtectedRoute = ({ children }) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/" replace />;
+  }
+
+  // Mandatory Plan Gate: Gym Owner MUST select a plan before entering dashboard
+  const isPlanSelectionPage = location.pathname === '/select-plan' || location.pathname === '/subscription-plans';
+  const hasPlan = Boolean(localStorage.getItem('gymSelectedPlan'));
+
+  if (!hasPlan && !isPlanSelectionPage) {
+    return <Navigate to="/select-plan" replace />;
   }
 
   return children;
