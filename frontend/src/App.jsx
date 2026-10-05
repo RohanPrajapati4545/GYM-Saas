@@ -21,7 +21,7 @@ import {
   GymOwnerSelectPlan,
 } from './pages/gym-owner';
 
-import AdminLogin from './pages/admin/AdminLogin';
+import { SuperAdminLogin } from './pages/superadmin';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminGyms from './pages/admin/AdminGyms';
 import AdminBranches from './pages/admin/AdminBranches';
@@ -130,11 +130,28 @@ function App() {
           }
         />
 
+        {/* Dedicated Super Admin Login Routes accessed via /superadmin or /admin/login */}
+        <Route
+          path="/superadmin"
+          element={
+            <AdminGuestRoute>
+              <SuperAdminLogin />
+            </AdminGuestRoute>
+          }
+        />
+        <Route
+          path="/superadmin/login"
+          element={
+            <AdminGuestRoute>
+              <SuperAdminLogin />
+            </AdminGuestRoute>
+          }
+        />
         <Route
           path="/admin/login"
           element={
             <AdminGuestRoute>
-              <AdminLogin />
+              <SuperAdminLogin />
             </AdminGuestRoute>
           }
         />

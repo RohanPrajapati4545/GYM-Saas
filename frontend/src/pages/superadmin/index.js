@@ -1,4 +1,4 @@
-export { default as SuperAdminLogin } from '../admin/AdminLogin';
+export { default as SuperAdminLogin } from './SuperAdminLogin';
 export { default as SuperAdminDashboard } from '../admin/AdminDashboard';
 export { default as SuperAdminGyms } from '../admin/AdminGyms';
 export { default as SuperAdminBranches } from '../admin/AdminBranches';
