@@ -155,33 +155,6 @@ const GymOwnerSelectPlan = () => {
   });
 
   React.useEffect(() => {
-    const fetchPlans = async () => {
-      try {
-        const res = await adminApi.get('/api/public/plans');
-        if (res.data?.data && Array.isArray(res.data.data)) {
-          const active = res.data.data.filter((p) => p.isActive !== false);
-          if (active.length > 0) {
-            setPlansList(active.map((p, idx) => normalizeSelectPlan(p, idx)));
-            try {
-              localStorage.setItem('admin_plans', JSON.stringify(active));
-            } catch (e) {}
-          }
-        } else {
-          const stored = getStoredAdminPlans();
-          if (stored.length > 0) {
-            setPlansList(stored.map((p, idx) => normalizeSelectPlan(p, idx)));
-          }
-        }
-      } catch (err) {
-        const stored = getStoredAdminPlans();
-        if (stored.length > 0) {
-          setPlansList(stored.map((p, idx) => normalizeSelectPlan(p, idx)));
-        }
-      }
-    };
-
-    fetchPlans();
-
     const handlePlansUpdated = () => {
       const stored = getStoredAdminPlans();
       if (stored.length > 0) {
@@ -189,12 +162,59 @@ const GymOwnerSelectPlan = () => {
       }
     };
 
+    const fetchPlans = async () => {
+      let active = null;
+      try {
+        const res = await adminApi.get('/api/public/plans');
+        if (res.data?.data && Array.isArray(res.data.data)) {
+          active = res.data.data.filter((p) => p.isActive !== false);
+        }
+      } catch (pubErr) {
+        try {
+          const admRes = await adminApi.get('/api/admin/plans');
+          if (admRes.data?.data && Array.isArray(admRes.data.data)) {
+            active = admRes.data.data.filter((p) => p.isActive !== false);
+          }
+        } catch (admErr) {}
+      }
+
+      if (active && active.length > 0) {
+        setPlansList(active.map((p, idx) => normalizeSelectPlan(p, idx)));
+        try {
+          localStorage.setItem('admin_plans', JSON.stringify(active));
+          localStorage.setItem('admin_custom_plans', JSON.stringify(active));
+        } catch (e) {}
+      } else {
+        handlePlansUpdated();
+      }
+    };
+
+    fetchPlans();
+
+    let bc = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        bc = new BroadcastChannel('superadmin_plans_channel');
+        bc.onmessage = (event) => {
+          if (event.data?.plans && Array.isArray(event.data.plans)) {
+            const activePlans = event.data.plans.filter((p) => p.isActive !== false);
+            setPlansList(activePlans.map((p, idx) => normalizeSelectPlan(p, idx)));
+          } else {
+            handlePlansUpdated();
+          }
+        };
+      } catch (e) {}
+    }
+
     window.addEventListener('storage', handlePlansUpdated);
     window.addEventListener('adminPlansUpdated', handlePlansUpdated);
+    window.addEventListener('focus', fetchPlans);
 
     return () => {
+      if (bc) bc.close();
       window.removeEventListener('storage', handlePlansUpdated);
       window.removeEventListener('adminPlansUpdated', handlePlansUpdated);
+      window.removeEventListener('focus', fetchPlans);
     };
   }, []);
 

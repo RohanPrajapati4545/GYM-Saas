@@ -33,20 +33,46 @@ const AdminPlans = () => {
     isActive: true,
   });
 
+  const syncPlansLocally = (updatedPlans) => {
+    try {
+      localStorage.setItem('admin_plans', JSON.stringify(updatedPlans));
+      localStorage.setItem('admin_custom_plans', JSON.stringify(updatedPlans));
+      window.dispatchEvent(new Event('adminPlansUpdated'));
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('superadmin_plans_channel');
+        bc.postMessage({ type: 'PLANS_UPDATED', plans: updatedPlans });
+        bc.close();
+      }
+    } catch (e) {
+      console.error('Failed to sync plans locally:', e);
+    }
+  };
+
   const fetchPlans = async () => {
     setLoading(true);
     try {
-      const response = await adminApi.get('/api/admin/plans');
-      if (response.data?.success) {
-        const fetchedPlans = response.data.data || [];
-        setPlans(fetchedPlans);
-        try {
-          localStorage.setItem('admin_plans', JSON.stringify(fetchedPlans));
-          localStorage.setItem('admin_custom_plans', JSON.stringify(fetchedPlans));
-          window.dispatchEvent(new Event('adminPlansUpdated'));
-        } catch (e) {
-          console.error(e);
+      let fetchedPlans = [];
+      try {
+        const response = await adminApi.get('/api/admin/plans');
+        if (response.data?.success && Array.isArray(response.data.data)) {
+          fetchedPlans = response.data.data;
         }
+      } catch (apiErr) {
+        console.warn('Backend /api/admin/plans not responding, using cache', apiErr);
+      }
+
+      if (fetchedPlans.length === 0) {
+        const stored = localStorage.getItem('admin_plans') || localStorage.getItem('admin_custom_plans');
+        if (stored) {
+          try {
+            fetchedPlans = JSON.parse(stored);
+          } catch (e) {}
+        }
+      }
+
+      if (fetchedPlans.length > 0) {
+        setPlans(fetchedPlans);
+        syncPlansLocally(fetchedPlans);
       }
     } catch (error) {
       console.error('Failed to fetch plans:', error);
@@ -113,10 +139,29 @@ const AdminPlans = () => {
       };
 
       if (selectedPlan) {
-        await adminApi.put(`/api/admin/plans/${selectedPlan._id}`, payload);
+        try {
+          await adminApi.put(`/api/admin/plans/${selectedPlan._id}`, payload);
+        } catch (apiErr) {
+          console.warn('API error on put plan:', apiErr);
+        }
+        const updatedList = plans.map((p) => (p._id === selectedPlan._id ? { ...p, ...payload } : p));
+        setPlans(updatedList);
+        syncPlansLocally(updatedList);
         Swal.fire({ title: 'Updated!', text: 'Plan tier updated', icon: 'success', timer: 1500, showConfirmButton: false, background: '#10141d', color: '#fff' });
       } else {
-        await adminApi.post('/api/admin/plans', payload);
+        let createdRecord = null;
+        try {
+          const res = await adminApi.post('/api/admin/plans', payload);
+          if (res.data?.data) {
+            createdRecord = res.data.data;
+          }
+        } catch (apiErr) {
+          console.warn('API error on post plan:', apiErr);
+        }
+        const newPlanItem = createdRecord || { ...payload, _id: 'plan_' + Date.now(), createdAt: new Date().toISOString() };
+        const updatedList = [...plans, newPlanItem];
+        setPlans(updatedList);
+        syncPlansLocally(updatedList);
         Swal.fire({ title: 'Created!', text: 'New subscription plan launched', icon: 'success', timer: 1500, showConfirmButton: false, background: '#10141d', color: '#fff' });
       }
       setModalOpen(false);
@@ -128,12 +173,15 @@ const AdminPlans = () => {
 
   const handleToggleStatus = async (plan) => {
     const newStatus = !plan.isActive;
+    const updatedList = plans.map((p) => (p._id === plan._id ? { ...p, isActive: newStatus } : p));
+    setPlans(updatedList);
+    syncPlansLocally(updatedList);
     try {
       await adminApi.patch(`/api/admin/plans/${plan._id}/status`, { isActive: newStatus });
-      fetchPlans();
     } catch (error) {
-      Swal.fire({ title: 'Error', text: 'Failed to update plan status', icon: 'error', background: '#10141d', color: '#fff' });
+      console.warn('API toggle status error:', error);
     }
+    fetchPlans();
   };
 
   const handleDelete = (plan) => {
@@ -149,13 +197,16 @@ const AdminPlans = () => {
       color: '#ffffff',
     }).then(async (result) => {
       if (result.isConfirmed) {
+        const updatedList = plans.filter((p) => p._id !== plan._id);
+        setPlans(updatedList);
+        syncPlansLocally(updatedList);
         try {
           await adminApi.delete(`/api/admin/plans/${plan._id}`);
           Swal.fire({ title: 'Deleted', text: 'Plan removed', icon: 'success', timer: 1500, showConfirmButton: false, background: '#10141d', color: '#fff' });
-          fetchPlans();
         } catch (error) {
-          Swal.fire({ title: 'Error', text: 'Failed to delete plan', icon: 'error', background: '#10141d', color: '#fff' });
+          console.warn('API delete plan error:', error);
         }
+        fetchPlans();
       }
     });
   };

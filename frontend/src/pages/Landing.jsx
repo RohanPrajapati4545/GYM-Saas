@@ -270,10 +270,9 @@ const Landing = () => {
 
     const fetchPublicData = async () => {
       try {
-        const [settingsRes, cmsRes, plansRes] = await Promise.allSettled([
+        const [settingsRes, cmsRes] = await Promise.allSettled([
           adminApi.get('/api/public/settings'),
           adminApi.get('/api/public/landing'),
-          adminApi.get('/api/public/plans'),
         ]);
 
         if (settingsRes.status === 'fulfilled' && settingsRes.value.data?.success) {
@@ -282,15 +281,29 @@ const Landing = () => {
         if (cmsRes.status === 'fulfilled' && cmsRes.value.data?.success) {
           dispatch(setLandingCMS(cmsRes.value.data.data));
         }
-        
-        if (plansRes.status === 'fulfilled' && plansRes.value.data?.data) {
-          const fetched = plansRes.value.data.data.filter((p) => p.isActive !== false);
-          if (fetched.length > 0) {
-            setDynamicPlans(fetched);
-            try {
-              localStorage.setItem('admin_plans', JSON.stringify(fetched));
-            } catch (e) {}
+
+        let fetched = null;
+        try {
+          const plansRes = await adminApi.get('/api/public/plans');
+          if (plansRes.data?.data && Array.isArray(plansRes.data.data)) {
+            fetched = plansRes.data.data.filter((p) => p.isActive !== false);
           }
+        } catch (pubErr) {
+          // fallback to /api/admin/plans if public route returned 404
+          try {
+            const adminPlansRes = await adminApi.get('/api/admin/plans');
+            if (adminPlansRes.data?.data && Array.isArray(adminPlansRes.data.data)) {
+              fetched = adminPlansRes.data.data.filter((p) => p.isActive !== false);
+            }
+          } catch (admErr) {}
+        }
+        
+        if (fetched && fetched.length > 0) {
+          setDynamicPlans(fetched);
+          try {
+            localStorage.setItem('admin_plans', JSON.stringify(fetched));
+            localStorage.setItem('admin_custom_plans', JSON.stringify(fetched));
+          } catch (e) {}
         } else {
           const stored = getStoredAdminPlans();
           if (stored && stored.length > 0) {
@@ -304,12 +317,30 @@ const Landing = () => {
 
     fetchPublicData();
 
+    let bc = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        bc = new BroadcastChannel('superadmin_plans_channel');
+        bc.onmessage = (event) => {
+          if (event.data?.plans && Array.isArray(event.data.plans)) {
+            const activePlans = event.data.plans.filter((p) => p.isActive !== false);
+            setDynamicPlans(activePlans);
+          } else {
+            refreshPlans();
+          }
+        };
+      } catch (e) {}
+    }
+
     window.addEventListener('storage', refreshPlans);
     window.addEventListener('adminPlansUpdated', refreshPlans);
+    window.addEventListener('focus', fetchPublicData);
 
     return () => {
+      if (bc) bc.close();
       window.removeEventListener('storage', refreshPlans);
       window.removeEventListener('adminPlansUpdated', refreshPlans);
+      window.removeEventListener('focus', fetchPublicData);
     };
   }, [dispatch]);
 
