@@ -11,7 +11,7 @@ const generateToken = (user) => {
       email: user.email,
       name: user.name,
       role: user.role,
-      tenantId: user.te=nantId,
+      tenantId: user.tenantId,
       branchId: user.branchId,
     },
     process.env.JWT_SECRET,
