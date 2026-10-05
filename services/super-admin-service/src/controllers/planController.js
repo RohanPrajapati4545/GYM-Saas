@@ -34,7 +34,7 @@ const getPlanById = async (req, res) => {
 
 const createPlan = async (req, res) => {
   try {
-    const { name, description, price, billingCycle, duration, features, maxBranches, maxMembers, isActive } = req.body;
+    const { name, description, price, yearlyPrice, tagline, billingCycle, duration, features, maxBranches, maxMembers, isPopular, isActive } = req.body;
 
     if (!name || price === undefined) {
       return res.status(400).json({ message: "Plan name and price are required" });
@@ -43,12 +43,15 @@ const createPlan = async (req, res) => {
     const plan = new Plan({
       name: name.trim(),
       description: description || "",
+      tagline: tagline ? tagline.trim() : "",
       price: Number(price),
+      yearlyPrice: yearlyPrice !== undefined ? Number(yearlyPrice) : Math.round(Number(price) * 0.8),
       billingCycle: billingCycle || "MONTHLY",
       duration: Number(duration) || 1,
       features: Array.isArray(features) ? features : (typeof features === "string" ? features.split(",").map(s => s.trim()) : []),
       maxBranches: Number(maxBranches) || 1,
       maxMembers: Number(maxMembers) || 100,
+      isPopular: Boolean(isPopular),
       isActive: isActive !== undefined ? Boolean(isActive) : true,
     });
 

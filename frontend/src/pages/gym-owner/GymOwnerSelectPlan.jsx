@@ -127,32 +127,15 @@ const normalizeSelectPlan = (p, idx) => {
   };
 };
 
-const getStoredCustomPlans = () => {
+const getStoredAdminPlans = () => {
   try {
-    const custom = localStorage.getItem('gym_custom_plans');
-    if (custom) {
-      const parsed = JSON.parse(custom);
+    const adminPlans = localStorage.getItem('admin_plans') || localStorage.getItem('admin_custom_plans');
+    if (adminPlans) {
+      const parsed = JSON.parse(adminPlans);
       if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter((p) => p.isActive !== false);
-    }
-    const globalPlans = localStorage.getItem('gym_membership_plans_global');
-    if (globalPlans) {
-      const parsed = JSON.parse(globalPlans);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter((p) => p.isActive !== false);
-    }
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.startsWith('gym_membership_plans_') || key.startsWith('admin_custom_plans'))) {
-        const val = localStorage.getItem(key);
-        if (val) {
-          const parsed = JSON.parse(val);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed.filter((p) => p.isActive !== false);
-          }
-        }
-      }
     }
   } catch (e) {
-    console.error('Error reading stored custom plans:', e);
+    console.error('Error reading stored admin plans:', e);
   }
   return [];
 };
@@ -164,7 +147,7 @@ const GymOwnerSelectPlan = () => {
   const [activatingPlanId, setActivatingPlanId] = useState(null);
 
   const [plansList, setPlansList] = useState(() => {
-    const stored = getStoredCustomPlans();
+    const stored = getStoredAdminPlans();
     if (stored.length > 0) {
       return stored.map((p, idx) => normalizeSelectPlan(p, idx));
     }
@@ -177,14 +160,20 @@ const GymOwnerSelectPlan = () => {
         const res = await adminApi.get('/api/public/plans');
         if (res.data?.data && Array.isArray(res.data.data)) {
           const active = res.data.data.filter((p) => p.isActive !== false);
-          const stored = getStoredCustomPlans();
-          const combined = stored.length > 0 ? stored : active;
-          if (combined.length > 0) {
-            setPlansList(combined.map((p, idx) => normalizeSelectPlan(p, idx)));
+          if (active.length > 0) {
+            setPlansList(active.map((p, idx) => normalizeSelectPlan(p, idx)));
+            try {
+              localStorage.setItem('admin_plans', JSON.stringify(active));
+            } catch (e) {}
+          }
+        } else {
+          const stored = getStoredAdminPlans();
+          if (stored.length > 0) {
+            setPlansList(stored.map((p, idx) => normalizeSelectPlan(p, idx)));
           }
         }
       } catch (err) {
-        const stored = getStoredCustomPlans();
+        const stored = getStoredAdminPlans();
         if (stored.length > 0) {
           setPlansList(stored.map((p, idx) => normalizeSelectPlan(p, idx)));
         }
@@ -194,19 +183,17 @@ const GymOwnerSelectPlan = () => {
     fetchPlans();
 
     const handlePlansUpdated = () => {
-      const stored = getStoredCustomPlans();
+      const stored = getStoredAdminPlans();
       if (stored.length > 0) {
         setPlansList(stored.map((p, idx) => normalizeSelectPlan(p, idx)));
       }
     };
 
     window.addEventListener('storage', handlePlansUpdated);
-    window.addEventListener('gymPlansUpdated', handlePlansUpdated);
     window.addEventListener('adminPlansUpdated', handlePlansUpdated);
 
     return () => {
       window.removeEventListener('storage', handlePlansUpdated);
-      window.removeEventListener('gymPlansUpdated', handlePlansUpdated);
       window.removeEventListener('adminPlansUpdated', handlePlansUpdated);
     };
   }, []);

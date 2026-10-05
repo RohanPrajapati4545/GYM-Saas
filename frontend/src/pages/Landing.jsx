@@ -214,39 +214,22 @@ const Landing = () => {
   ];
   const [activeNav, setActiveNav] = useState('home');
 
-  // Helper to extract custom plans created in gym owner dashboard or admin
-  const getStoredCustomPlans = () => {
+  // Helper to extract SaaS plans configured by Super Admin
+  const getStoredAdminPlans = () => {
     try {
-      const custom = localStorage.getItem('gym_custom_plans');
-      if (custom) {
-        const parsed = JSON.parse(custom);
+      const adminPlans = localStorage.getItem('admin_plans') || localStorage.getItem('admin_custom_plans');
+      if (adminPlans) {
+        const parsed = JSON.parse(adminPlans);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter((p) => p.isActive !== false);
-      }
-      const globalPlans = localStorage.getItem('gym_membership_plans_global');
-      if (globalPlans) {
-        const parsed = JSON.parse(globalPlans);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter((p) => p.isActive !== false);
-      }
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.startsWith('gym_membership_plans_') || key.startsWith('admin_custom_plans'))) {
-          const val = localStorage.getItem(key);
-          if (val) {
-            const parsed = JSON.parse(val);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              return parsed.filter((p) => p.isActive !== false);
-            }
-          }
-        }
       }
     } catch (e) {
-      console.error('Error reading stored custom plans:', e);
+      console.error('Error reading stored admin plans:', e);
     }
     return [];
   };
 
   const [dynamicPlans, setDynamicPlans] = useState(() => {
-    const stored = getStoredCustomPlans();
+    const stored = getStoredAdminPlans();
     return stored.length > 0 ? stored : [];
   });
 
@@ -276,10 +259,10 @@ const Landing = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Fetch Public CMS Data & Dynamic Pricing Plans with instant real-time sync
+  // Fetch Public CMS Data & Dynamic Super Admin Pricing Plans with instant real-time sync
   useEffect(() => {
     const refreshPlans = () => {
-      const stored = getStoredCustomPlans();
+      const stored = getStoredAdminPlans();
       if (stored && stored.length > 0) {
         setDynamicPlans(stored);
       }
@@ -300,13 +283,18 @@ const Landing = () => {
           dispatch(setLandingCMS(cmsRes.value.data.data));
         }
         
-        const stored = getStoredCustomPlans();
-        if (stored && stored.length > 0) {
-          setDynamicPlans(stored);
-        } else if (plansRes.status === 'fulfilled' && plansRes.value.data?.data) {
+        if (plansRes.status === 'fulfilled' && plansRes.value.data?.data) {
           const fetched = plansRes.value.data.data.filter((p) => p.isActive !== false);
           if (fetched.length > 0) {
             setDynamicPlans(fetched);
+            try {
+              localStorage.setItem('admin_plans', JSON.stringify(fetched));
+            } catch (e) {}
+          }
+        } else {
+          const stored = getStoredAdminPlans();
+          if (stored && stored.length > 0) {
+            setDynamicPlans(stored);
           }
         }
       } catch (err) {
@@ -317,12 +305,10 @@ const Landing = () => {
     fetchPublicData();
 
     window.addEventListener('storage', refreshPlans);
-    window.addEventListener('gymPlansUpdated', refreshPlans);
     window.addEventListener('adminPlansUpdated', refreshPlans);
 
     return () => {
       window.removeEventListener('storage', refreshPlans);
-      window.removeEventListener('gymPlansUpdated', refreshPlans);
       window.removeEventListener('adminPlansUpdated', refreshPlans);
     };
   }, [dispatch]);

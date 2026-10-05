@@ -37,6 +37,18 @@ const planSchema = new mongoose.Schema(
       type: Number,
       default: 100,
     },
+    tagline: {
+      type: String,
+      default: "",
+    },
+    yearlyPrice: {
+      type: Number,
+      default: 0,
+    },
+    isPopular: {
+      type: Boolean,
+      default: false,
+    },
     isActive: {
       type: Boolean,
       default: true,
