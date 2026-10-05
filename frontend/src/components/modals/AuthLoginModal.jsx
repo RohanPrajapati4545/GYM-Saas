@@ -93,7 +93,13 @@ const AuthLoginModal = ({ isOpen, onClose, onSwitchToRegister }) => {
 
       if (!hasPlan) {
         try {
-          const gymRes = await gymOwnerApi.get('/api/owner/gym/profile');
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 3000)
+          );
+          const gymRes = await Promise.race([
+            gymOwnerApi.get('/api/owner/gym/profile'),
+            timeoutPromise,
+          ]);
           if (gymRes.data?.data?.planName) {
             const p = gymRes.data.data;
             localStorage.setItem(
@@ -110,7 +116,7 @@ const AuthLoginModal = ({ isOpen, onClose, onSwitchToRegister }) => {
             hasPlan = true;
           }
         } catch (gymErr) {
-          // fallback
+          // non-blocking fallback
         }
       }
 

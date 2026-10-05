@@ -21,6 +21,7 @@ import {
   Trash2,
   QrCode,
   CheckCircle2,
+  CheckCircle,
   AlertTriangle,
   TrendingUp,
   Activity,
@@ -43,6 +44,9 @@ import {
   Radio,
   Check,
   ArrowRight,
+  Zap,
+  Sparkles,
+  CreditCard,
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -118,6 +122,106 @@ const Dashboard = () => {
     state: '',
     country: 'India',
   });
+
+  // Membership Plans Data & Modal State
+  const defaultGymPlans = [
+    {
+      id: 'plan_monthly',
+      name: 'Monthly Standard Fitness',
+      type: 'MONTHLY',
+      price: 49,
+      durationDays: 30,
+      tagline: 'Standard Access',
+      description: 'Full equipment floor access, locker access & general cardio training.',
+      features: ['Single Branch Access', 'Standard Gym Floor Access', 'Locker Room & Shower', 'Member App Check-In QR'],
+      isActive: true,
+      isPopular: false,
+    },
+    {
+      id: 'plan_quarterly',
+      name: 'Quarterly Strength & HIIT',
+      type: 'QUARTERLY',
+      price: 129,
+      durationDays: 90,
+      tagline: 'Most Popular',
+      description: 'Strength training + cardio + group workout sessions + 1 trainer assessment.',
+      features: ['All Branch Roaming Access', 'Free Fitness & BMI Assessment', 'Locker & Sauna Access', 'Automated WhatsApp Invoicing'],
+      isActive: true,
+      isPopular: true,
+    },
+    {
+      id: 'plan_annual',
+      name: 'Annual VIP All-Access',
+      type: 'ANNUAL',
+      price: 399,
+      durationDays: 365,
+      tagline: 'Best Value (Save 35%)',
+      description: 'VIP 365-day access with turnstile RFID tag, 4 personal trainer sessions & diet plan.',
+      features: ['Unlimited Roaming All Branches', 'RFID Smart Gate Tag Included', '4 Complimentary PT Sessions', 'Custom Diet & Macro Nutrition Plan', 'Priority Guest Passes (2/mo)'],
+      isActive: true,
+      isPopular: false,
+    },
+    {
+      id: 'plan_pt',
+      name: 'Personal Training Elite',
+      type: 'VIP_PASS',
+      price: 249,
+      durationDays: 30,
+      tagline: 'Dedicated Coach',
+      description: '1-on-1 personal coaching with customized workout programming and daily check-ins.',
+      features: ['12 Dedicated 1-on-1 PT Sessions', 'Body Composition Telemetry Tracking', 'Custom Nutrition Chart', 'Gate Turnstile Fast-Pass'],
+      isActive: true,
+      isPopular: false,
+    },
+    {
+      id: 'plan_trial',
+      name: 'Single Day Fitness Pass',
+      type: 'TRIAL',
+      price: 10,
+      durationDays: 1,
+      tagline: 'Day Pass',
+      description: 'Single day drop-in workout pass with instant RFID turnstile gate access.',
+      features: ['1 Day Full Facility Access', 'Instant Gate Turnstile QR', 'Locker Access'],
+      isActive: true,
+      isPopular: false,
+    },
+  ];
+
+  const [gymPlans, setGymPlans] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`gym_membership_plans_${user?.id || 'owner'}`);
+      return saved ? JSON.parse(saved) : defaultGymPlans;
+    } catch (e) {
+      return defaultGymPlans;
+    }
+  });
+
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null);
+  const [planForm, setPlanForm] = useState({
+    name: '',
+    type: 'MONTHLY',
+    price: 49,
+    durationDays: 30,
+    tagline: '',
+    description: '',
+    features: '',
+    isPopular: false,
+    isActive: true,
+  });
+
+  // Save gym plans to localStorage whenever modified
+  const saveGymPlans = (updatedPlans) => {
+    setGymPlans(updatedPlans);
+    try {
+      localStorage.setItem(`gym_membership_plans_${user?.id || 'owner'}`, JSON.stringify(updatedPlans));
+      localStorage.setItem('gym_membership_plans_global', JSON.stringify(updatedPlans));
+      localStorage.setItem('gym_custom_plans', JSON.stringify(updatedPlans));
+      window.dispatchEvent(new Event('gymPlansUpdated'));
+    } catch (e) {
+      console.error('Failed to save plans:', e);
+    }
+  };
 
   // Quick Facility Specs Alert State (2-3 extra optional fields)
   const [showQuickSpecsModal, setShowQuickSpecsModal] = useState(false);
@@ -535,6 +639,112 @@ const Dashboard = () => {
     }
   };
 
+  // --- MEMBERSHIP PLAN HANDLERS ---
+  const handleOpenPlanModal = (plan = null) => {
+    if (plan) {
+      setEditingPlan(plan);
+      setPlanForm({
+        name: plan.name || '',
+        type: plan.type || 'MONTHLY',
+        price: plan.price || 49,
+        durationDays: plan.durationDays || 30,
+        tagline: plan.tagline || '',
+        description: plan.description || '',
+        features: Array.isArray(plan.features) ? plan.features.join(', ') : plan.features || '',
+        isPopular: !!plan.isPopular,
+        isActive: plan.isActive !== false,
+      });
+    } else {
+      setEditingPlan(null);
+      setPlanForm({
+        name: '',
+        type: 'MONTHLY',
+        price: 49,
+        durationDays: 30,
+        tagline: 'Standard Tier',
+        description: '',
+        features: 'Gym Floor Access, Locker Room, Free Member App',
+        isPopular: false,
+        isActive: true,
+      });
+    }
+    setShowPlanModal(true);
+  };
+
+  const handleSavePlan = (e) => {
+    e.preventDefault();
+    if (!planForm.name.trim()) {
+      Swal.fire({ title: 'Validation Error', text: 'Plan name is required.', icon: 'warning', background: '#10141d', color: '#fff' });
+      return;
+    }
+
+    const featureArr = planForm.features
+      ? planForm.features.split(',').map((f) => f.trim()).filter(Boolean)
+      : [];
+
+    if (editingPlan) {
+      const updated = gymPlans.map((p) =>
+        p.id === editingPlan.id
+          ? {
+              ...p,
+              name: planForm.name.trim(),
+              type: planForm.type,
+              price: Number(planForm.price) || 0,
+              durationDays: Number(planForm.durationDays) || 30,
+              tagline: planForm.tagline.trim(),
+              description: planForm.description.trim(),
+              features: featureArr,
+              isPopular: planForm.isPopular,
+              isActive: planForm.isActive,
+            }
+          : p
+      );
+      saveGymPlans(updated);
+      Swal.fire({ title: 'Plan Updated!', text: 'Membership plan updated successfully.', icon: 'success', background: '#10141d', color: '#fff', timer: 1500, showConfirmButton: false });
+    } else {
+      const newPlan = {
+        id: `plan_${Date.now()}`,
+        name: planForm.name.trim(),
+        type: planForm.type,
+        price: Number(planForm.price) || 0,
+        durationDays: Number(planForm.durationDays) || 30,
+        tagline: planForm.tagline.trim(),
+        description: planForm.description.trim(),
+        features: featureArr,
+        isPopular: planForm.isPopular,
+        isActive: planForm.isActive,
+      };
+      saveGymPlans([...gymPlans, newPlan]);
+      Swal.fire({ title: 'Plan Created!', text: 'New membership plan tier created.', icon: 'success', background: '#10141d', color: '#fff', timer: 1500, showConfirmButton: false });
+    }
+    setShowPlanModal(false);
+  };
+
+  const handleTogglePlanStatus = (planId) => {
+    const updated = gymPlans.map((p) => (p.id === planId ? { ...p, isActive: !p.isActive } : p));
+    saveGymPlans(updated);
+  };
+
+  const handleDeletePlan = async (planId) => {
+    const confirm = await Swal.fire({
+      title: 'Delete Membership Plan?',
+      text: 'Are you sure you want to remove this plan tier?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ff2a2a',
+      cancelButtonColor: '#1e2433',
+      confirmButtonText: 'Yes, Delete',
+      background: '#10141d',
+      color: '#fff',
+    });
+
+    if (confirm.isConfirmed) {
+      const updated = gymPlans.filter((p) => p.id !== planId);
+      saveGymPlans(updated);
+      Swal.fire({ title: 'Deleted', text: 'Membership plan removed.', icon: 'success', background: '#10141d', color: '#fff', timer: 1200, showConfirmButton: false });
+    }
+  };
+
   // --- GYM PROFILE HANDLER ---
   const handleSaveGymProfile = async (e) => {
     e.preventDefault();
@@ -555,6 +765,7 @@ const Dashboard = () => {
     { id: 'Branches', label: 'Branches', icon: GitBranch, count: branches.length },
     { id: 'BranchManagers', label: 'Branch Managers', icon: UserCheck, count: managers.length },
     { id: 'Members', label: 'Members Directory', icon: Users, count: members.length },
+    { id: 'Plans', label: 'Membership Plans', icon: Award, count: gymPlans.length },
     { id: 'Attendance', label: 'Live RFID Attendance', icon: CalendarCheck2 },
     { id: 'Settings', label: 'Gym & Settings', icon: Settings },
   ];
@@ -1395,6 +1606,276 @@ const Dashboard = () => {
             </div>
           )}
 
+          {/* =================== TAB: PLANS & MEMBERSHIPS =================== */}
+          {activeTab === 'Plans' && (
+            <div>
+              {/* Stat Cards */}
+              <div className="stats-grid mb-4">
+                <div className="stat-card">
+                  <div className="stat-header">
+                    <span className="stat-title">Total Membership Tiers</span>
+                    <div className="stat-icon-wrapper red">
+                      <Award size={18} />
+                    </div>
+                  </div>
+                  <div className="stat-value">{gymPlans.length}</div>
+                  <div className="d-flex align-items-center gap-1 text-success" style={{ fontSize: '0.78rem' }}>
+                    <CheckCircle2 size={13} />
+                    <span>{gymPlans.filter((p) => p.isActive).length} Active Selling Plans</span>
+                  </div>
+                </div>
+
+                <div className="stat-card">
+                  <div className="stat-header">
+                    <span className="stat-title">Enrolled Members</span>
+                    <div className="stat-icon-wrapper emerald">
+                      <Users size={18} />
+                    </div>
+                  </div>
+                  <div className="stat-value">{members.length}</div>
+                  <div className="d-flex align-items-center gap-1 text-info" style={{ fontSize: '0.78rem' }}>
+                    <TrendingUp size={13} />
+                    <span>Across all package tiers</span>
+                  </div>
+                </div>
+
+                <div className="stat-card">
+                  <div className="stat-header">
+                    <span className="stat-title">Franchise SaaS Tier</span>
+                    <div className="stat-icon-wrapper amber">
+                      <Shield size={18} />
+                    </div>
+                  </div>
+                  <div className="stat-value text-red" style={{ fontSize: '1.4rem' }}>{activePlanName}</div>
+                  <div className="d-flex align-items-center gap-1 text-warning" style={{ fontSize: '0.78rem' }}>
+                    <Zap size={13} />
+                    <span>Multi-Branch Roaming Active</span>
+                  </div>
+                </div>
+
+                <div className="stat-card">
+                  <div className="stat-header">
+                    <span className="stat-title">Branch Quota Used</span>
+                    <div className="stat-icon-wrapper cyan">
+                      <GitBranch size={18} />
+                    </div>
+                  </div>
+                  <div className="stat-value">{branches.length} <span className="fs-6 text-muted font-sans fw-normal">/ {metrics.maxBranches}</span></div>
+                  <div className="d-flex align-items-center gap-1 text-success" style={{ fontSize: '0.78rem' }}>
+                    <CheckCircle2 size={13} />
+                    <span>{metrics.maxBranches - branches.length} Slots Available</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Bar */}
+              <div className="d-flex flex-wrap align-items-center justify-content-between mb-4 gap-3">
+                <div>
+                  <h3 className="card-title fs-4 m-0 text-white">Gym Membership Packages & Passes</h3>
+                  <p className="text-muted m-0" style={{ fontSize: '0.82rem' }}>
+                    Create custom passes, set daily/monthly pricing, and link turnstile RFID entitlements.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-red d-flex align-items-center gap-2"
+                  onClick={() => handleOpenPlanModal()}
+                >
+                  <Plus size={16} />
+                  <span>Create Membership Tier</span>
+                </button>
+              </div>
+
+              {/* Dynamic Plans Grid */}
+              <div className="row g-4 mb-5">
+                {gymPlans.map((plan) => {
+                  const enrolledCount = members.filter(
+                    (m) =>
+                      m.planType === plan.type ||
+                      m.planType === plan.name ||
+                      (m.amountPaid === plan.price && m.planType?.toLowerCase().includes(plan.type?.toLowerCase()))
+                  ).length;
+
+                  return (
+                    <div key={plan.id} className="col-12 col-md-6 col-xl-4">
+                      <div
+                        className="content-card h-100 d-flex flex-column justify-content-between position-relative"
+                        style={{
+                          border: plan.isPopular
+                            ? '1px solid rgba(255, 42, 42, 0.5)'
+                            : '1px solid rgba(255, 255, 255, 0.08)',
+                          boxShadow: plan.isPopular ? '0 0 25px rgba(255,42,42,0.15)' : 'none',
+                          background: plan.isActive ? '#141824' : 'rgba(20,24,36,0.6)',
+                          opacity: plan.isActive ? 1 : 0.7,
+                        }}
+                      >
+                        {plan.isPopular && (
+                          <span
+                            className="badge position-absolute top-0 end-0 m-3 px-3 py-1"
+                            style={{
+                              background: 'linear-gradient(135deg, #ff2a2a 0%, #b80000 100%)',
+                              color: '#fff',
+                              fontWeight: '800',
+                              fontSize: '0.65rem',
+                              letterSpacing: '0.06em',
+                              borderRadius: '20px',
+                            }}
+                          >
+                            🔥 {plan.tagline || 'MOST POPULAR'}
+                          </span>
+                        )}
+
+                        <div>
+                          <div className="d-flex align-items-center justify-content-between mb-2">
+                            <span
+                              className="badge"
+                              style={{
+                                background: 'rgba(255,42,42,0.15)',
+                                color: '#ff2a2a',
+                                border: '1px solid rgba(255,42,42,0.3)',
+                                fontSize: '0.7rem',
+                                letterSpacing: '0.04em',
+                              }}
+                            >
+                              {plan.type}
+                            </span>
+                            {!plan.isPopular && plan.tagline && (
+                              <span className="text-muted small" style={{ fontSize: '0.75rem' }}>
+                                {plan.tagline}
+                              </span>
+                            )}
+                          </div>
+
+                          <h4 className="text-white fw-bold m-0 fs-5">{plan.name}</h4>
+                          <p className="text-muted small mt-1 mb-3" style={{ minHeight: '36px', fontSize: '0.8rem' }}>
+                            {plan.description || 'Standard membership pass package for gym athletes.'}
+                          </p>
+
+                          <div className="d-flex align-items-baseline gap-2 mb-3 pb-3 border-bottom border-dark">
+                            <span className="fs-2 fw-black font-display text-white">${plan.price}</span>
+                            <span className="text-silver small">/ {plan.durationDays} Days</span>
+                          </div>
+
+                          <ul className="list-unstyled d-flex flex-column gap-2 mb-4">
+                            {plan.features?.map((feat, fIdx) => (
+                              <li key={fIdx} className="d-flex align-items-center gap-2 text-silver small">
+                                <CheckCircle2 size={14} color="#ff2a2a" className="flex-shrink-0" />
+                                <span>{feat}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div>
+                          <div className="d-flex align-items-center justify-content-between pt-3 border-top border-dark">
+                            <div className="d-flex align-items-center gap-2">
+                              <span
+                                className={`badge ${plan.isActive ? 'bg-success' : 'bg-secondary'}`}
+                                style={{ fontSize: '0.65rem', cursor: 'pointer' }}
+                                onClick={() => handleTogglePlanStatus(plan.id)}
+                                title="Click to toggle status"
+                              >
+                                {plan.isActive ? 'ACTIVE' : 'INACTIVE'}
+                              </span>
+                              <span className="text-muted small" style={{ fontSize: '0.75rem' }}>
+                                {enrolledCount} {enrolledCount === 1 ? 'Member' : 'Members'}
+                              </span>
+                            </div>
+
+                            <div className="d-flex align-items-center gap-1">
+                              <button
+                                type="button"
+                                className="btn btn-dark btn-sm text-silver p-1 px-2 border-dark"
+                                onClick={() => handleOpenPlanModal(plan)}
+                                title="Edit Membership Plan"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-dark btn-sm text-danger p-1 px-2 border-dark"
+                                onClick={() => handleDeletePlan(plan.id)}
+                                title="Delete Membership Plan"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Franchise SaaS Subscription & Upgrades Box */}
+              <div
+                className="p-4 rounded-3 mb-4"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(20,24,36,0.98) 0%, rgba(255,42,42,0.06) 100%)',
+                  border: '1px solid rgba(255,42,42,0.25)',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
+                }}
+              >
+                <div className="row g-4 align-items-center">
+                  <div className="col-12 col-lg-8">
+                    <div className="d-flex align-items-center gap-2 mb-2">
+                      <span className="badge bg-danger text-white">SAAS SUBSCRIPTION</span>
+                      <span className="text-silver small">Franchise Cloud License</span>
+                    </div>
+                    <h3 className="text-white fs-4 fw-bold m-0">Current SaaS Plan: {activePlanName}</h3>
+                    <p className="text-muted small mt-1 mb-3">
+                      Need more branch locations, unlimited RFID turnstile gate telemetry, or white-label branding?
+                    </p>
+
+                    <div className="row g-3">
+                      <div className="col-12 col-md-6">
+                        <div className="p-3 rounded bg-dark border border-dark">
+                          <div className="d-flex justify-content-between text-silver small mb-1">
+                            <span>Branch Quota Allocation</span>
+                            <span className="fw-bold text-white">{branches.length} / {metrics.maxBranches}</span>
+                          </div>
+                          <div className="progress" style={{ height: '6px', background: '#21262d' }}>
+                            <div
+                              className="progress-bar bg-danger"
+                              style={{ width: `${Math.min(100, (branches.length / metrics.maxBranches) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="col-12 col-md-6">
+                        <div className="p-3 rounded bg-dark border border-dark">
+                          <div className="d-flex justify-content-between text-silver small mb-1">
+                            <span>Member Database Capacity</span>
+                            <span className="fw-bold text-white">{members.length} / {metrics.maxMembers}</span>
+                          </div>
+                          <div className="progress" style={{ height: '6px', background: '#21262d' }}>
+                            <div
+                              className="progress-bar bg-success"
+                              style={{ width: `${Math.min(100, (members.length / metrics.maxMembers) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="col-12 col-lg-4 d-flex flex-column align-items-lg-end justify-content-center">
+                    <Link
+                      to="/select-plan"
+                      className="btn-red px-4 py-2 d-flex align-items-center gap-2 text-decoration-none"
+                    >
+                      <Sparkles size={16} />
+                      <span>Upgrade / Switch SaaS Tier</span>
+                      <ArrowRight size={16} />
+                    </Link>
+                    <span className="text-muted small mt-2">Prorated billing • Instant upgrade</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* =================== TAB 6: SETTINGS =================== */}
           {activeTab === 'Settings' && (
             <div className="row g-4">
@@ -1854,12 +2335,26 @@ const Dashboard = () => {
                     className="input-athletic"
                     style={{ paddingLeft: '14px' }}
                     value={memberForm.planType}
-                    onChange={(e) => setMemberForm({ ...memberForm, planType: e.target.value })}
+                    onChange={(e) => {
+                      const selectedType = e.target.value;
+                      const matched = gymPlans.find(
+                        (p) => p.type === selectedType || p.id === selectedType || p.name === selectedType
+                      );
+                      setMemberForm({
+                        ...memberForm,
+                        planType: selectedType,
+                        amountPaid: matched ? matched.price : memberForm.amountPaid,
+                        durationDays: matched ? matched.durationDays : memberForm.durationDays,
+                      });
+                    }}
                   >
-                    <option value="MONTHLY">Monthly Pass ($49)</option>
-                    <option value="QUARTERLY">Quarterly Pass ($129)</option>
-                    <option value="ANNUAL">Annual VIP Pass ($399)</option>
-                    <option value="VIP_PASS">All-Branch VIP ($599)</option>
+                    {gymPlans
+                      .filter((p) => p.isActive)
+                      .map((p) => (
+                        <option key={p.id} value={p.type}>
+                          {p.name} (${p.price} / {p.durationDays}d)
+                        </option>
+                      ))}
                   </select>
                 </div>
                 <div className="col-12 col-md-6">
@@ -1889,6 +2384,152 @@ const Dashboard = () => {
                   </button>
                   <button type="submit" className="btn-red">
                     <span>{editingMember ? 'Update Member' : 'Register Member'}</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =================== MODAL: CREATE / EDIT MEMBERSHIP PLAN =================== */}
+      {showPlanModal && (
+        <div className="custom-modal-backdrop" onClick={() => setShowPlanModal(false)}>
+          <div className="custom-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
+            <div className="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-dark">
+              <div className="d-flex align-items-center gap-2">
+                <Award size={22} className="text-red" />
+                <h3 className="font-hero fs-4 text-white m-0">
+                  {editingPlan ? 'Edit Membership Plan Tier' : 'Create New Membership Plan Tier'}
+                </h3>
+              </div>
+              <button className="btn text-white p-1" onClick={() => setShowPlanModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePlan}>
+              <div className="row g-3">
+                <div className="col-12 col-md-8">
+                  <label className="label-athletic">Plan Name *</label>
+                  <input
+                    type="text"
+                    className="input-athletic"
+                    style={{ paddingLeft: '14px' }}
+                    placeholder="e.g. Quarterly Strength & Cardio"
+                    value={planForm.name}
+                    onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="col-12 col-md-4">
+                  <label className="label-athletic">Plan Category / Code</label>
+                  <select
+                    className="input-athletic"
+                    style={{ paddingLeft: '14px' }}
+                    value={planForm.type}
+                    onChange={(e) => setPlanForm({ ...planForm, type: e.target.value })}
+                  >
+                    <option value="MONTHLY">MONTHLY</option>
+                    <option value="QUARTERLY">QUARTERLY</option>
+                    <option value="ANNUAL">ANNUAL</option>
+                    <option value="VIP_PASS">VIP_PASS</option>
+                    <option value="TRIAL">TRIAL</option>
+                  </select>
+                </div>
+
+                <div className="col-12 col-md-6">
+                  <label className="label-athletic">Price ($) *</label>
+                  <input
+                    type="number"
+                    className="input-athletic"
+                    style={{ paddingLeft: '14px' }}
+                    placeholder="e.g. 99"
+                    value={planForm.price}
+                    onChange={(e) => setPlanForm({ ...planForm, price: e.target.value })}
+                    required
+                    min="0"
+                  />
+                </div>
+                <div className="col-12 col-md-6">
+                  <label className="label-athletic">Duration (Days Validity) *</label>
+                  <input
+                    type="number"
+                    className="input-athletic"
+                    style={{ paddingLeft: '14px' }}
+                    placeholder="e.g. 30, 90, 365"
+                    value={planForm.durationDays}
+                    onChange={(e) => setPlanForm({ ...planForm, durationDays: e.target.value })}
+                    required
+                    min="1"
+                  />
+                </div>
+
+                <div className="col-12">
+                  <label className="label-athletic">Tagline / Highlight Badge</label>
+                  <input
+                    type="text"
+                    className="input-athletic"
+                    style={{ paddingLeft: '14px' }}
+                    placeholder="e.g. Most Popular, Save 20%, VIP Pass"
+                    value={planForm.tagline}
+                    onChange={(e) => setPlanForm({ ...planForm, tagline: e.target.value })}
+                  />
+                </div>
+
+                <div className="col-12">
+                  <label className="label-athletic">Short Description</label>
+                  <textarea
+                    className="input-athletic"
+                    rows="2"
+                    style={{ paddingLeft: '14px' }}
+                    placeholder="Brief overview of what the member gets..."
+                    value={planForm.description}
+                    onChange={(e) => setPlanForm({ ...planForm, description: e.target.value })}
+                  />
+                </div>
+
+                <div className="col-12">
+                  <label className="label-athletic">Included Features & Perks (Comma-Separated)</label>
+                  <textarea
+                    className="input-athletic"
+                    rows="3"
+                    style={{ paddingLeft: '14px' }}
+                    placeholder="e.g. All Branch Access, Locker & Shower, Free PT Session, RFID Turnstile Pass"
+                    value={planForm.features}
+                    onChange={(e) => setPlanForm({ ...planForm, features: e.target.value })}
+                  />
+                  <small className="text-muted" style={{ fontSize: '0.75rem' }}>
+                    Separate multiple bullet items with commas.
+                  </small>
+                </div>
+
+                <div className="col-12 d-flex align-items-center gap-4 mt-2">
+                  <label className="d-flex align-items-center gap-2 text-white small cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={planForm.isPopular}
+                      onChange={(e) => setPlanForm({ ...planForm, isPopular: e.target.checked })}
+                    />
+                    <span>Highlight as Featured / Most Popular</span>
+                  </label>
+
+                  <label className="d-flex align-items-center gap-2 text-white small cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={planForm.isActive}
+                      onChange={(e) => setPlanForm({ ...planForm, isActive: e.target.checked })}
+                    />
+                    <span>Active for Sale</span>
+                  </label>
+                </div>
+
+                <div className="col-12 mt-4 d-flex justify-content-end gap-2">
+                  <button type="button" className="btn btn-secondary-sm" onClick={() => setShowPlanModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-red">
+                    <span>{editingPlan ? 'Update Plan Tier' : 'Save Plan Tier'}</span>
                   </button>
                 </div>
               </div>

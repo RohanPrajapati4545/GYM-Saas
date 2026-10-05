@@ -35,7 +35,14 @@ const AdminPlans = () => {
     try {
       const response = await adminApi.get('/api/admin/plans');
       if (response.data?.success) {
-        setPlans(response.data.data || []);
+        const fetchedPlans = response.data.data || [];
+        setPlans(fetchedPlans);
+        try {
+          localStorage.setItem('admin_custom_plans', JSON.stringify(fetchedPlans));
+          window.dispatchEvent(new Event('adminPlansUpdated'));
+        } catch (e) {
+          console.error(e);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch plans:', error);

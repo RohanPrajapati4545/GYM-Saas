@@ -34,15 +34,15 @@ const HERO_SLIDES = [
   {
     id: 1,
     badge: 'ALL-IN-ONE GYM MANAGEMENT SAAS',
-    titlePrefix: 'REPLACE 6 DISJOINTED TOOLS WITH',
-    titleHighlight: 'ONE POWERFUL GYM OS',
-    subtitle: 'Automate admissions, biometric turnstiles, WhatsApp billing, and multi-branch analytics with the #1 cloud software for gym owners.',
+    titlePrefix: 'Your Gym.',
+    titleHighlight: 'One Powerful Dashboard.',
+    subtitle: 'Stop juggling spreadsheets, WhatsApp messages, and multiple tools. GymSaaS brings your entire gym operation together in one simple platform.',
     primaryButtonText: 'Book Free Live Demo',
     primaryButtonLink: '#contact',
-    secondaryButtonText: 'Explore Capabilities',
+    secondaryButtonText: 'Explore Platform',
     secondaryButtonLink: '#features',
     image: '/slide-1.jpg',
-    trustPoints: ['Zero-Latency Turnstiles', 'WhatsApp Billing POS', 'Multi-Branch Roaming'],
+    trustPoints: ['Members → Memberships', 'Payments → Attendance', 'Trainers → Analytics'],
   },
   {
     id: 2,
@@ -115,9 +115,18 @@ const Landing = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const dispatch = useDispatch();
-  const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const { isAuthenticated, user, loading: authLoading } = useSelector((state) => state.auth);
+  const { isAuthenticated: isAdminAuth, admin, loading: adminLoading } = useSelector((state) => state.adminAuth);
   const { settings } = useSelector((state) => state.settings);
   const { landingCMS } = useSelector((state) => state.cms);
+
+  useEffect(() => {
+    if (isAdminAuth || admin || user?.role === 'SUPER_ADMIN') {
+      navigate('/admin/dashboard', { replace: true });
+    } else if (isAuthenticated || user) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, isAdminAuth, user, admin, navigate]);
 
   // Popups State (Sign In & Book Free Demo)
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -193,7 +202,55 @@ const Landing = () => {
     }
   };
 
-  // Scroll listener for smooth transparent-to-dark navbar
+  // Header Navigation Items & Active Tab State
+  const NAV_ITEMS = [
+    { id: 'home', label: 'Home' },
+    { id: 'features', label: 'Features' },
+    { id: 'ecosystem', label: 'Ecosystem' },
+    { id: 'calculator', label: 'ROI Calculator' },
+    { id: 'pricing', label: 'Pricing' },
+    { id: 'faq', label: 'FAQ' },
+    { id: 'contact', label: 'Contact' },
+  ];
+  const [activeNav, setActiveNav] = useState('home');
+
+  // Helper to extract custom plans created in gym owner dashboard or admin
+  const getStoredCustomPlans = () => {
+    try {
+      const custom = localStorage.getItem('gym_custom_plans');
+      if (custom) {
+        const parsed = JSON.parse(custom);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter((p) => p.isActive !== false);
+      }
+      const globalPlans = localStorage.getItem('gym_membership_plans_global');
+      if (globalPlans) {
+        const parsed = JSON.parse(globalPlans);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter((p) => p.isActive !== false);
+      }
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('gym_membership_plans_') || key.startsWith('admin_custom_plans'))) {
+          const val = localStorage.getItem(key);
+          if (val) {
+            const parsed = JSON.parse(val);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              return parsed.filter((p) => p.isActive !== false);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error reading stored custom plans:', e);
+    }
+    return [];
+  };
+
+  const [dynamicPlans, setDynamicPlans] = useState(() => {
+    const stored = getStoredCustomPlans();
+    return stored.length > 0 ? stored : [];
+  });
+
+  // Scroll listener for smooth transparent-to-dark navbar & active section scroll spy
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 20) {
@@ -201,26 +258,56 @@ const Landing = () => {
       } else {
         setIsScrolled(false);
       }
+
+      // Scroll Spy for active nav tab (lights up glowing red line under active tab)
+      const scrollPos = window.scrollY + 160;
+      const sectionIds = ['contact', 'faq', 'pricing', 'calculator', 'ecosystem', 'features', 'home'];
+      for (const id of sectionIds) {
+        const el = document.getElementById(id) || (id === 'home' ? document.getElementById('home-mobile') : null);
+        if (el && el.offsetTop <= scrollPos) {
+          setActiveNav(id);
+          break;
+        }
+      }
     };
+
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Fetch Public CMS Data
+  // Fetch Public CMS Data & Dynamic Pricing Plans with instant real-time sync
   useEffect(() => {
+    const refreshPlans = () => {
+      const stored = getStoredCustomPlans();
+      if (stored && stored.length > 0) {
+        setDynamicPlans(stored);
+      }
+    };
+
     const fetchPublicData = async () => {
       try {
-        const [settingsRes, cmsRes] = await Promise.all([
+        const [settingsRes, cmsRes, plansRes] = await Promise.allSettled([
           adminApi.get('/api/public/settings'),
           adminApi.get('/api/public/landing'),
+          adminApi.get('/api/public/plans'),
         ]);
 
-        if (settingsRes.data?.success) {
-          dispatch(setSettings(settingsRes.data.data));
+        if (settingsRes.status === 'fulfilled' && settingsRes.value.data?.success) {
+          dispatch(setSettings(settingsRes.value.data.data));
         }
-        if (cmsRes.data?.success) {
-          dispatch(setLandingCMS(cmsRes.data.data));
+        if (cmsRes.status === 'fulfilled' && cmsRes.value.data?.success) {
+          dispatch(setLandingCMS(cmsRes.value.data.data));
+        }
+        
+        const stored = getStoredCustomPlans();
+        if (stored && stored.length > 0) {
+          setDynamicPlans(stored);
+        } else if (plansRes.status === 'fulfilled' && plansRes.value.data?.data) {
+          const fetched = plansRes.value.data.data.filter((p) => p.isActive !== false);
+          if (fetched.length > 0) {
+            setDynamicPlans(fetched);
+          }
         }
       } catch (err) {
         console.error('Failed to load public landing data:', err);
@@ -228,6 +315,16 @@ const Landing = () => {
     };
 
     fetchPublicData();
+
+    window.addEventListener('storage', refreshPlans);
+    window.addEventListener('gymPlansUpdated', refreshPlans);
+    window.addEventListener('adminPlansUpdated', refreshPlans);
+
+    return () => {
+      window.removeEventListener('storage', refreshPlans);
+      window.removeEventListener('gymPlansUpdated', refreshPlans);
+      window.removeEventListener('adminPlansUpdated', refreshPlans);
+    };
   }, [dispatch]);
 
   // Automated Hero Slider Interval (6 Seconds auto-slide)
@@ -257,21 +354,26 @@ const Landing = () => {
     return () => observer.disconnect();
   }, [landingCMS]);
 
-  const activeSlide = HERO_SLIDES[currentSlideIndex];
+  const customCmsTitle =
+    landingCMS?.hero?.title && landingCMS.hero.title !== 'BE STRONG'
+      ? landingCMS.hero.title
+      : null;
+
+  const activeSlide = HERO_SLIDES[currentSlideIndex] || HERO_SLIDES[0];
 
   // If CMS has custom hero override, merge it gracefully into first slide
   const displaySlide = {
     ...activeSlide,
     ...(currentSlideIndex === 0 && landingCMS?.hero
       ? {
-          badge: landingCMS.hero.badge || activeSlide.badge,
-          titlePrefix: landingCMS.hero.title ? '' : activeSlide.titlePrefix,
-          titleHighlight: landingCMS.hero.title || activeSlide.titleHighlight,
-          subtitle: landingCMS.hero.subtitle || activeSlide.subtitle,
-          primaryButtonText: landingCMS.hero.primaryButtonText || activeSlide.primaryButtonText,
-          primaryButtonLink: landingCMS.hero.primaryButtonLink || activeSlide.primaryButtonLink,
-          secondaryButtonText: landingCMS.hero.secondaryButtonText || activeSlide.secondaryButtonText,
-        }
+        badge: landingCMS.hero.badge || activeSlide.badge,
+        titlePrefix: customCmsTitle ? '' : activeSlide.titlePrefix,
+        titleHighlight: customCmsTitle || activeSlide.titleHighlight,
+        subtitle: landingCMS.hero.subtitle || activeSlide.subtitle,
+        primaryButtonText: landingCMS.hero.primaryButtonText || activeSlide.primaryButtonText,
+        primaryButtonLink: landingCMS.hero.primaryButtonLink || activeSlide.primaryButtonLink,
+        secondaryButtonText: landingCMS.hero.secondaryButtonText || activeSlide.secondaryButtonText,
+      }
       : {}),
   };
 
@@ -407,13 +509,16 @@ const Landing = () => {
         </Link>
 
         <nav className="xtreme-nav-links d-none d-lg-flex">
-          <a href="#home" className="active">Home</a>
-          <a href="#features">Features</a>
-          <a href="#ecosystem">Ecosystem</a>
-          <a href="#calculator">ROI Calculator</a>
-          <a href="#pricing">Pricing</a>
-          <a href="#faq">FAQ</a>
-          <a href="#contact">Contact</a>
+          {NAV_ITEMS.map((item) => (
+            <a
+              key={item.id}
+              href={`#${item.id}`}
+              className={activeNav === item.id ? 'active' : ''}
+              onClick={() => setActiveNav(item.id)}
+            >
+              {item.label}
+            </a>
+          ))}
         </nav>
 
         <div className="xtreme-nav-actions d-none d-md-flex align-items-center gap-2">
@@ -457,16 +562,14 @@ const Landing = () => {
         </button>
       </header>
 
-      {/* Mobile Drawer Navigation */}
+      {/* Mobile Drawer Navigation (Smooth Slide-In with Backdrop Blur) */}
       {mobileMenuOpen && (
         <div
-          className="position-fixed top-0 start-0 w-100 h-100 z-3 d-lg-none"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)' }}
+          className="mobile-drawer-overlay d-lg-none open"
           onClick={() => setMobileMenuOpen(false)}
         >
           <div
-            className="position-absolute top-0 end-0 h-100 d-flex flex-column p-4"
-            style={{ width: 'min(320px, 85vw)', backgroundColor: '#0d1117', borderLeft: '1px solid rgba(255,255,255,0.1)' }}
+            className="mobile-drawer-content d-flex flex-column p-4 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="d-flex align-items-center justify-content-between mb-4 pb-3 border-bottom border-dark">
@@ -475,33 +578,34 @@ const Landing = () => {
                 type="button"
                 className="btn text-white p-1 fs-4"
                 onClick={() => setMobileMenuOpen(false)}
+                aria-label="Close Mobile Menu"
               >
                 ✕
               </button>
             </div>
 
             <nav className="d-flex flex-column gap-3 mb-4">
-              <a href="#home" className="text-white text-decoration-none fw-semibold fs-5 py-2 border-bottom border-dark" onClick={() => setMobileMenuOpen(false)}>
-                Home
-              </a>
-              <a href="#features" className="text-silver text-decoration-none fw-semibold fs-5 py-2 border-bottom border-dark" onClick={() => setMobileMenuOpen(false)}>
-                Features
-              </a>
-              <a href="#ecosystem" className="text-silver text-decoration-none fw-semibold fs-5 py-2 border-bottom border-dark" onClick={() => setMobileMenuOpen(false)}>
-                Ecosystem
-              </a>
-              <a href="#calculator" className="text-silver text-decoration-none fw-semibold fs-5 py-2 border-bottom border-dark" onClick={() => setMobileMenuOpen(false)}>
-                ROI Calculator
-              </a>
-              <a href="#pricing" className="text-silver text-decoration-none fw-semibold fs-5 py-2 border-bottom border-dark" onClick={() => setMobileMenuOpen(false)}>
-                Pricing
-              </a>
-              <a href="#faq" className="text-silver text-decoration-none fw-semibold fs-5 py-2 border-bottom border-dark" onClick={() => setMobileMenuOpen(false)}>
-                FAQ
-              </a>
-              <a href="#contact" className="text-silver text-decoration-none fw-semibold fs-5 py-2 border-bottom border-dark" onClick={() => setMobileMenuOpen(false)}>
-                Contact
-              </a>
+              {NAV_ITEMS.map((item) => (
+                <a
+                  key={item.id}
+                  href={`#${item.id}`}
+                  className={`text-decoration-none fw-semibold fs-5 py-2 border-bottom border-dark d-flex align-items-center justify-content-between ${
+                    activeNav === item.id ? 'text-red fw-bold' : 'text-silver'
+                  }`}
+                  onClick={() => {
+                    setActiveNav(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <span>{item.label}</span>
+                  {activeNav === item.id && (
+                    <span
+                      className="badge bg-danger rounded-pill"
+                      style={{ width: '8px', height: '8px', padding: 0 }}
+                    />
+                  )}
+                </a>
+              ))}
             </nav>
 
             <div className="mt-auto d-flex flex-column gap-2 pt-3 border-top border-dark">
@@ -542,9 +646,91 @@ const Landing = () => {
       )}
 
       {/* =========================================================================
-          DYNAMIC HERO SECTION (CLEAN AYURFLEX-STYLE RIGHT-SIDE BG SLIDER)
+          HERO SECTION (DESKTOP: DYNAMIC SLIDER | MOBILE: CLEAN STATIC PROFESSIONAL HERO)
           ========================================================================= */}
-      <section className="xtreme-hero" id="home">
+
+      {/* 1. MOBILE ONLY HERO (Static professional text & static background image - NO SLIDER) */}
+      <section className="xtreme-hero mobile-static-hero d-md-none" id="home-mobile">
+        <div
+          className="mobile-hero-bg"
+          style={{
+            backgroundImage: 'url(/slide-1.jpg)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center top',
+            opacity: 0.2,
+          }}
+        />
+        <div className="mobile-hero-gradient-overlay" />
+
+        <div className="position-relative z-2 text-center px-2 py-3">
+          <div className="hero-brand-pill mx-auto mb-3">
+            <span className="hero-brand-pill-dot"></span>
+            <span>{landingCMS?.hero?.badge || 'ALL-IN-ONE GYM SAAS PLATFORM'}</span>
+          </div>
+
+          <h1 className="hero-headline-massive text-white mb-3" style={{ fontSize: '2.05rem', lineHeight: '1.22' }}>
+            {customCmsTitle ? (
+              <span className="text-gradient-red">{customCmsTitle}</span>
+            ) : (
+              <>
+                Your Gym.{' '}
+                <span className="text-gradient-red">One Powerful Dashboard.</span>
+              </>
+            )}
+          </h1>
+
+          <p className="hero-subheadline text-silver mx-auto mb-3" style={{ fontSize: '0.92rem', lineHeight: '1.55' }}>
+            {landingCMS?.hero?.subtitle || (
+              <>
+                Stop juggling spreadsheets, WhatsApp messages, and multiple tools.
+                <br className="d-none d-sm-block" />
+                <span className="text-white fw-semibold"> GymSaaS brings your entire gym operation together in one simple platform.</span>
+              </>
+            )}
+          </p>
+
+          {/* Operational Flow Ribbon */}
+          <div className="hero-flow-ribbon mx-auto mb-4" style={{ maxWidth: '420px' }}>
+            <span className="hero-flow-item">Members</span>
+            <span className="hero-flow-arrow">→</span>
+            <span className="hero-flow-item">Memberships</span>
+            <span className="hero-flow-arrow">→</span>
+            <span className="hero-flow-item">Payments</span>
+            <span className="hero-flow-arrow">→</span>
+            <span className="hero-flow-item">Attendance</span>
+            <span className="hero-flow-arrow">→</span>
+            <span className="hero-flow-item">Trainers</span>
+            <span className="hero-flow-arrow">→</span>
+            <span className="hero-flow-item">Analytics</span>
+          </div>
+
+          <div className="d-flex flex-column gap-2.5 mx-auto mb-3" style={{ maxWidth: '340px' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedTrialPlan(null);
+                setIsRegisterModalOpen(true);
+              }}
+              className="btn-hero-primary justify-content-center w-100 py-3"
+            >
+              <span>{landingCMS?.hero?.primaryButtonText || 'Book Free Live Demo'}</span>
+              <ArrowRight size={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsLoginModalOpen(true)}
+              className="btn-hero-secondary justify-content-center w-100 py-2.5"
+            >
+              <Sparkles size={16} className="text-red" />
+              <span>Owner Sign In</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* 2. DESKTOP & TABLET HERO (Original Dynamic 6-Slide Slider) */}
+      <section className="xtreme-hero d-none d-md-flex" id="home">
         {/* Multi-Image Background Slider (Seamless Right-Side BG) */}
         <div className="hero-slider-bg-wrapper">
           {HERO_SLIDES.map((slide, idx) => (
@@ -569,8 +755,8 @@ const Landing = () => {
                 const isActive = idx === currentSlideIndex;
                 const isFirstSlide = idx === 0 && landingCMS?.hero;
                 const itemBadge = isFirstSlide ? (landingCMS.hero.badge || slide.badge) : slide.badge;
-                const itemPrefix = isFirstSlide ? (landingCMS.hero.title ? '' : slide.titlePrefix) : slide.titlePrefix;
-                const itemHighlight = isFirstSlide ? (landingCMS.hero.title || slide.titleHighlight) : slide.titleHighlight;
+                const itemPrefix = isFirstSlide ? (customCmsTitle ? '' : slide.titlePrefix) : slide.titlePrefix;
+                const itemHighlight = isFirstSlide ? (customCmsTitle || slide.titleHighlight) : slide.titleHighlight;
                 const itemSubtitle = isFirstSlide ? (landingCMS.hero.subtitle || slide.subtitle) : slide.subtitle;
                 const itemPrimaryText = isFirstSlide ? (landingCMS.hero.primaryButtonText || slide.primaryButtonText) : slide.primaryButtonText;
                 const itemPrimaryLink = isFirstSlide ? (landingCMS.hero.primaryButtonLink || slide.primaryButtonLink) : slide.primaryButtonLink;
@@ -943,213 +1129,222 @@ const Landing = () => {
         </div>
 
         <div className="row g-4 justify-content-center mt-2">
-          {/* Plan 1: Starter */}
-          <div className="col-12 col-md-6 col-lg-4 reveal-on-scroll stagger-1">
-            <div className="plan-card h-100 d-flex flex-column justify-content-between">
-              <div>
-                <span className="plan-badge">SINGLE BOUTIQUE CLUB</span>
-                <h3 className="font-display fs-4 m-0 mt-1">STARTER GYM</h3>
-                <p className="text-muted mt-1" style={{ fontSize: '0.82rem' }}>
-                  Ideal for standalone fitness studios, iron gyms, and single-owner clubs.
-                </p>
+          {((dynamicPlans && dynamicPlans.length > 0)
+            ? dynamicPlans
+            : [
+                {
+                  id: 'starter',
+                  _id: 'starter',
+                  name: 'Starter Gym',
+                  tagline: 'SINGLE BOUTIQUE CLUB',
+                  description: 'Ideal for standalone fitness studios, iron gyms, and single-owner clubs.',
+                  price: 49,
+                  yearlyPrice: 39,
+                  maxBranches: 1,
+                  maxMembers: 300,
+                  features: [
+                    'WhatsApp Automated Billing & Reminders',
+                    'Branded Member Digital Pass Web App',
+                    'POS Invoicing & GST Tax Management',
+                    'Trainer & Staff Attendance Logs',
+                    'Standard Email & Chat Support',
+                  ],
+                  isPopular: false,
+                },
+                {
+                  id: 'growth-pro',
+                  _id: 'growth-pro',
+                  name: 'Growth Pro',
+                  tagline: 'MULTI-BRANCH & HARDWARE',
+                  description: 'For growing fitness brands requiring automated turnstile gates & multi-branch roaming.',
+                  price: 99,
+                  yearlyPrice: 79,
+                  maxBranches: 5,
+                  maxMembers: 1500,
+                  features: [
+                    'Everything in Starter, plus:',
+                    'Biometric & RFID Turnstile Gate Sync',
+                    'Automated Overdue Gate Lockout System',
+                    'Trainer PT Session Commission Calculator',
+                    'Multi-Branch Consolidated P&L Analytics',
+                    'Priority 24/7 WhatsApp & Phone Support',
+                  ],
+                  isPopular: true,
+                },
+                {
+                  id: 'enterprise',
+                  _id: 'enterprise',
+                  name: 'Enterprise',
+                  tagline: 'FRANCHISE & CHAINS',
+                  description: 'For multi-city gym chains, franchises, and fitness centers with custom requirements.',
+                  price: 199,
+                  yearlyPrice: 159,
+                  maxBranches: 999,
+                  maxMembers: 999999,
+                  features: [
+                    'Everything in Growth Pro, plus:',
+                    'Unlimited Turnstile & Facial Recognition Sync',
+                    'Custom White-Label Domain & Branding',
+                    'Dedicated Platform Success Manager',
+                    'Custom Hardware API & ERP Webhooks',
+                    '99.99% Guaranteed Cloud SLA Agreement',
+                  ],
+                  isPopular: false,
+                },
+              ]
+          ).map((plan, idx) => {
+            const isFeatured =
+              plan.isPopular ||
+              plan.isFeatured ||
+              idx === 1 ||
+              plan.name?.toLowerCase().includes('growth') ||
+              plan.name?.toLowerCase().includes('pro') ||
+              plan.name?.toLowerCase().includes('premium');
+            const planMonthlyPrice = Number(plan.price) || 49;
+            const isLongDuration = (plan.durationDays && plan.durationDays >= 365) || plan.type === 'ANNUAL';
+            const calculatedYearly = plan.yearlyPrice || (isLongDuration ? planMonthlyPrice : Math.round(planMonthlyPrice * 0.8));
+            const currentDisplayPrice = pricingCycle === 'monthly' ? planMonthlyPrice : calculatedYearly;
 
-                <div className="plan-price my-3">
-                  ${pricingCycle === 'monthly' ? '49' : '39'}
-                  <span>/month {pricingCycle === 'yearly' && '(billed annually)'}</span>
-                </div>
+            const durationSuffix = plan.durationDays
+              ? plan.durationDays === 30
+                ? '/30 Days'
+                : plan.durationDays === 365
+                ? '/year'
+                : `/${plan.durationDays} Days`
+              : '/month';
 
-                <div className="p-2 mb-3 rounded bg-dark border border-dark text-silver small">
-                  📍 <strong>1 Gym Location</strong> • Up to <strong>300 Members</strong>
-                </div>
+            const branchesText =
+              plan.maxBranches !== undefined && plan.maxBranches !== null
+                ? plan.maxBranches >= 50
+                  ? 'Unlimited Branches'
+                  : `${plan.maxBranches} Gym Location${plan.maxBranches > 1 ? 's' : ''}`
+                : plan.durationDays
+                ? `${plan.durationDays} Days Validity`
+                : 'All Branches Access';
 
-                <ul className="plan-features">
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span>WhatsApp Automated Billing & Reminders</span>
-                  </li>
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span>Branded Member Digital Pass Web App</span>
-                  </li>
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span>POS Invoicing & GST Tax Management</span>
-                  </li>
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span>Trainer & Staff Attendance Logs</span>
-                  </li>
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span>Standard Email & Chat Support</span>
-                  </li>
-                </ul>
-              </div>
+            const membersText =
+              plan.maxMembers !== undefined && plan.maxMembers !== null
+                ? plan.maxMembers >= 10000
+                  ? 'Unlimited Members'
+                  : `Up to ${Number(plan.maxMembers).toLocaleString()} Members`
+                : 'Turnstile RFID Sync';
 
-              <div className="mt-4">
-                <button
-                  type="button"
-                  className="btn-outline-red w-100 d-flex align-items-center justify-content-center gap-2"
-                  onClick={() =>
-                    handleSelectPlan({
-                      id: 'starter',
-                      planName: 'Starter Gym',
-                      monthlyPrice: 49,
-                      yearlyPrice: 39,
-                      price: pricingCycle === 'monthly' ? 49 : 39,
-                      billingCycle: pricingCycle.toUpperCase(),
-                      maxBranches: 1,
-                      maxMembers: 300,
-                    })
-                  }
-                >
-                  <span>Start 14-Day Free Trial</span>
-                  <ArrowRight size={15} />
-                </button>
-              </div>
-            </div>
-          </div>
+            const featuresList = Array.isArray(plan.features)
+              ? plan.features
+              : typeof plan.features === 'string'
+              ? plan.features.split(',').map((f) => f.trim()).filter(Boolean)
+              : ['Standard Gym Floor Access', 'Locker Access', 'Member App'];
 
-          {/* Plan 2: Growth Pro (Featured) */}
-          <div className="col-12 col-md-6 col-lg-4 reveal-on-scroll stagger-2">
-            <div className="plan-card featured h-100 d-flex flex-column justify-content-between position-relative">
-              <span
-                className="badge position-absolute top-0 end-0 m-3 px-3 py-1"
-                style={{
-                  background: 'linear-gradient(135deg, #ff2a2a 0%, #b80000 100%)',
-                  color: '#fff',
-                  fontWeight: '800',
-                  letterSpacing: '0.06em',
-                  borderRadius: '20px',
-                  boxShadow: '0 0 14px rgba(255,42,42,0.6)',
-                }}
+            return (
+              <div
+                key={plan._id || plan.id || idx}
+                className={`col-12 col-md-6 col-lg-4 reveal-on-scroll stagger-${(idx % 3) + 1}`}
               >
-                🔥 MOST POPULAR
-              </span>
-
-              <div>
-                <span className="plan-badge">MULTI-BRANCH & HARDWARE</span>
-                <h3 className="font-display fs-4 m-0 mt-1">GROWTH PRO</h3>
-                <p className="text-muted mt-1" style={{ fontSize: '0.82rem' }}>
-                  For growing fitness brands requiring automated turnstile gates & multi-branch roaming.
-                </p>
-
-                <div className="plan-price my-3 text-red">
-                  ${pricingCycle === 'monthly' ? '99' : '79'}
-                  <span className="text-silver">/month {pricingCycle === 'yearly' && '(billed annually)'}</span>
-                </div>
-
-                <div className="p-2 mb-3 rounded bg-dark border border-danger text-silver small" style={{ background: 'rgba(255,42,42,0.08)' }}>
-                  📍 Up to <strong>5 Gym Branches</strong> • Up to <strong>1,500 Members</strong>
-                </div>
-
-                <ul className="plan-features">
-                  <li className="d-flex align-items-center gap-2 fw-semibold text-white">
-                    <Sparkles size={15} color="#ff2a2a" />
-                    <span>Everything in Starter, plus:</span>
-                  </li>
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span><strong>Biometric & RFID Turnstile Gate Sync</strong></span>
-                  </li>
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span>Automated Overdue Gate Lockout System</span>
-                  </li>
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span>Trainer PT Session Commission Calculator</span>
-                  </li>
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span>Multi-Branch Consolidated P&L Analytics</span>
-                  </li>
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span>Priority 24/7 WhatsApp & Phone Support</span>
-                  </li>
-                </ul>
-              </div>
-
-              <div className="mt-4">
-                <button
-                  type="button"
-                  className="btn-red w-100 d-flex align-items-center justify-content-center gap-2"
-                  onClick={() =>
-                    handleSelectPlan({
-                      id: 'growth-pro',
-                      planName: 'Growth Pro',
-                      monthlyPrice: 99,
-                      yearlyPrice: 79,
-                      price: pricingCycle === 'monthly' ? 99 : 79,
-                      billingCycle: pricingCycle.toUpperCase(),
-                      maxBranches: 5,
-                      maxMembers: 1500,
-                    })
-                  }
+                <div
+                  className={`plan-card h-100 d-flex flex-column justify-content-between position-relative ${
+                    isFeatured ? 'featured' : ''
+                  }`}
                 >
-                  <span>Start 14-Day Free Trial</span>
-                  <ArrowRight size={15} />
-                </button>
-              </div>
-            </div>
-          </div>
+                  {isFeatured && (
+                    <span
+                      className="badge position-absolute top-0 end-0 m-3 px-3 py-1"
+                      style={{
+                        background: 'linear-gradient(135deg, #ff2a2a 0%, #b80000 100%)',
+                        color: '#fff',
+                        fontWeight: '800',
+                        letterSpacing: '0.06em',
+                        borderRadius: '20px',
+                        boxShadow: '0 0 14px rgba(255,42,42,0.6)',
+                      }}
+                    >
+                      🔥 MOST POPULAR
+                    </span>
+                  )}
 
-          {/* Plan 3: Enterprise */}
-          <div className="col-12 col-md-6 col-lg-4 reveal-on-scroll stagger-3">
-            <div className="plan-card h-100 d-flex flex-column justify-content-between">
-              <div>
-                <span className="plan-badge">FRANCHISE & CHAINS</span>
-                <h3 className="font-display fs-4 m-0 mt-1">ENTERPRISE</h3>
-                <p className="text-muted mt-1" style={{ fontSize: '0.82rem' }}>
-                  For multi-city gym chains, franchises, and fitness centers with custom requirements.
-                </p>
+                  <div>
+                    <span className="plan-badge">
+                      {plan.tagline ||
+                        (plan.type
+                          ? `${plan.type} TIER`
+                          : isFeatured
+                          ? 'MULTI-BRANCH & HARDWARE'
+                          : idx === 0
+                          ? 'SINGLE BOUTIQUE CLUB'
+                          : 'FRANCHISE & CHAINS')}
+                    </span>
+                    <h3 className="font-display fs-4 m-0 mt-1">{plan.name}</h3>
+                    <p className="text-muted mt-1" style={{ fontSize: '0.82rem' }}>
+                      {plan.description || 'Comprehensive all-in-one gym management package.'}
+                    </p>
 
-                <div className="plan-price my-3">
-                  ${pricingCycle === 'monthly' ? '199' : '159'}
-                  <span>/month {pricingCycle === 'yearly' && '(billed annually)'}</span>
+                    <div className={`plan-price my-3 ${isFeatured ? 'text-red' : ''}`}>
+                      ${currentDisplayPrice}
+                      <span className={isFeatured ? 'text-silver' : ''}>
+                        {durationSuffix} {pricingCycle === 'yearly' && !plan.durationDays && '(billed annually)'}
+                      </span>
+                    </div>
+
+                    <div
+                      className="p-2 mb-3 rounded bg-dark border text-silver small"
+                      style={{
+                        borderColor: isFeatured ? 'rgba(255,42,42,0.4)' : 'rgba(255,255,255,0.1)',
+                        background: isFeatured ? 'rgba(255,42,42,0.08)' : '#10141d',
+                      }}
+                    >
+                      📍 <strong>{branchesText}</strong> • <strong>{membersText}</strong>
+                    </div>
+
+                    <ul className="plan-features">
+                      {featuresList.map((feature, fIdx) => {
+                        const isPlusHeader =
+                          typeof feature === 'string' &&
+                          feature.toLowerCase().includes('everything in');
+                        return (
+                          <li
+                            key={fIdx}
+                            className={`d-flex align-items-center gap-2 ${
+                              isPlusHeader ? 'fw-semibold text-white' : ''
+                            }`}
+                          >
+                            {isPlusHeader ? (
+                              <Sparkles size={15} color="#ff2a2a" />
+                            ) : (
+                              <CheckCircle2 size={15} color="#ff2a2a" />
+                            )}
+                            <span>{feature}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      className={`${
+                        isFeatured ? 'btn-red' : 'btn-outline-red'
+                      } w-100 d-flex align-items-center justify-content-center gap-2`}
+                      onClick={() =>
+                        handleSelectPlan({
+                          id: plan._id || plan.id,
+                          planName: plan.name,
+                          monthlyPrice: planMonthlyPrice,
+                          yearlyPrice: calculatedYearly,
+                          price: currentDisplayPrice,
+                          billingCycle: pricingCycle.toUpperCase(),
+                          maxBranches: plan.maxBranches || 1,
+                          maxMembers: plan.maxMembers || 300,
+                        })
+                      }
+                    >
+                      <span>Start 14-Day Free Trial</span>
+                      <ArrowRight size={15} />
+                    </button>
+                  </div>
                 </div>
-
-                <div className="p-2 mb-3 rounded bg-dark border border-dark text-silver small">
-                  📍 <strong>Unlimited Branches</strong> • <strong>Unlimited Members</strong>
-                </div>
-
-                <ul className="plan-features">
-                  <li className="d-flex align-items-center gap-2 fw-semibold text-white">
-                    <Sparkles size={15} color="#ff2a2a" />
-                    <span>Everything in Growth Pro, plus:</span>
-                  </li>
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span>Unlimited Turnstile & Facial Recognition Sync</span>
-                  </li>
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span>Custom White-Label Domain & Branding</span>
-                  </li>
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span>Dedicated Platform Success Manager</span>
-                  </li>
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span>Custom Hardware API & ERP Webhooks</span>
-                  </li>
-                  <li className="d-flex align-items-center gap-2">
-                    <CheckCircle2 size={15} color="#ff2a2a" />
-                    <span>99.99% Guaranteed Cloud SLA Agreement</span>
-                  </li>
-                </ul>
               </div>
-
-              <div className="mt-4">
-                <a href="#contact" className="btn-outline-red w-100">
-                  <span>Contact Sales / Custom Demo</span>
-                  <ArrowRight size={15} />
-                </a>
-              </div>
-            </div>
-          </div>
+            );
+          })}
         </div>
 
         {/* Guarantee Banner */}

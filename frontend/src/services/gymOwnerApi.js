@@ -2,6 +2,7 @@ import axios from 'axios';
 
 const gymOwnerApi = axios.create({
   baseURL: import.meta.env.VITE_GYM_OWNER_API_URL || 'http://localhost:5003',
+  timeout: 25000,
   headers: {
     'Content-Type': 'application/json',
   },

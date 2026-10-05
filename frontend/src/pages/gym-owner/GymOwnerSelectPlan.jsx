@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import gymOwnerApi from '../../services/gymOwnerApi';
+import adminApi from '../../services/adminApi';
 import DynamicLogo from '../../components/DynamicLogo';
 import Swal from 'sweetalert2';
 import {
@@ -17,7 +18,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 
-const PLANS = [
+const DEFAULT_PLANS = [
   {
     id: 'STARTER',
     name: 'Starter Gym',
@@ -83,11 +84,168 @@ const PLANS = [
   },
 ];
 
+const normalizeSelectPlan = (p, idx) => {
+  const isFeatured =
+    p.isPopular ||
+    p.isFeatured ||
+    idx === 1 ||
+    p.name?.toLowerCase().includes('growth') ||
+    p.name?.toLowerCase().includes('pro') ||
+    p.name?.toLowerCase().includes('premium');
+  const monthlyPrice = Number(p.monthlyPrice || p.price) || 49;
+  const isLongDuration = (p.durationDays && p.durationDays >= 365) || p.type === 'ANNUAL';
+  const yearlyPrice = Number(p.yearlyPrice) || (isLongDuration ? monthlyPrice : Math.round(monthlyPrice * 0.8));
+
+  const features = Array.isArray(p.features)
+    ? p.features
+    : typeof p.features === 'string'
+    ? p.features.split(',').map((s) => s.trim()).filter(Boolean)
+    : ['Full Gym Floor Access', 'Locker Room & Shower', 'Branded Member App'];
+
+  return {
+    id: p._id || p.id || `plan_${idx}`,
+    name: p.name || 'Standard Gym',
+    tagline:
+      p.tagline ||
+      (p.type
+        ? `${p.type} TIER`
+        : isFeatured
+        ? 'MULTI-BRANCH & BIOMETRIC HARDWARE'
+        : idx === 0
+        ? 'SINGLE BOUTIQUE CLUB'
+        : 'FRANCHISE & NETWORKS'),
+    description: p.description || 'All-in-one gym management & attendance solution.',
+    monthlyPrice,
+    yearlyPrice,
+    price: monthlyPrice,
+    durationDays: p.durationDays,
+    maxBranches: p.maxBranches !== undefined ? p.maxBranches : 5,
+    maxMembers: p.maxMembers !== undefined ? p.maxMembers : 1500,
+    features,
+    buttonText: p.buttonText || `Activate ${p.name || 'Plan'}`,
+    isPopular: isFeatured,
+  };
+};
+
+const getStoredCustomPlans = () => {
+  try {
+    const custom = localStorage.getItem('gym_custom_plans');
+    if (custom) {
+      const parsed = JSON.parse(custom);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter((p) => p.isActive !== false);
+    }
+    const globalPlans = localStorage.getItem('gym_membership_plans_global');
+    if (globalPlans) {
+      const parsed = JSON.parse(globalPlans);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter((p) => p.isActive !== false);
+    }
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('gym_membership_plans_') || key.startsWith('admin_custom_plans'))) {
+        const val = localStorage.getItem(key);
+        if (val) {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.filter((p) => p.isActive !== false);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error reading stored custom plans:', e);
+  }
+  return [];
+};
+
 const GymOwnerSelectPlan = () => {
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [activatingPlanId, setActivatingPlanId] = useState(null);
+
+  const [plansList, setPlansList] = useState(() => {
+    const stored = getStoredCustomPlans();
+    if (stored.length > 0) {
+      return stored.map((p, idx) => normalizeSelectPlan(p, idx));
+    }
+    return DEFAULT_PLANS;
+  });
+
+  React.useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const res = await adminApi.get('/api/public/plans');
+        if (res.data?.data && Array.isArray(res.data.data)) {
+          const active = res.data.data.filter((p) => p.isActive !== false);
+          const stored = getStoredCustomPlans();
+          const combined = stored.length > 0 ? stored : active;
+          if (combined.length > 0) {
+            setPlansList(combined.map((p, idx) => normalizeSelectPlan(p, idx)));
+          }
+        }
+      } catch (err) {
+        const stored = getStoredCustomPlans();
+        if (stored.length > 0) {
+          setPlansList(stored.map((p, idx) => normalizeSelectPlan(p, idx)));
+        }
+      }
+    };
+
+    fetchPlans();
+
+    const handlePlansUpdated = () => {
+      const stored = getStoredCustomPlans();
+      if (stored.length > 0) {
+        setPlansList(stored.map((p, idx) => normalizeSelectPlan(p, idx)));
+      }
+    };
+
+    window.addEventListener('storage', handlePlansUpdated);
+    window.addEventListener('gymPlansUpdated', handlePlansUpdated);
+    window.addEventListener('adminPlansUpdated', handlePlansUpdated);
+
+    return () => {
+      window.removeEventListener('storage', handlePlansUpdated);
+      window.removeEventListener('gymPlansUpdated', handlePlansUpdated);
+      window.removeEventListener('adminPlansUpdated', handlePlansUpdated);
+    };
+  }, []);
+
+  const confirmAndSelectPlan = async (plan) => {
+    const price = billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
+    const cycleLabel = billingCycle === 'monthly' ? 'Monthly' : 'Annual (20% OFF)';
+
+    const result = await Swal.fire({
+      title: `Select ${plan.name}?`,
+      html: `
+        <div style="font-size:0.95rem; color:#cbd5e1; margin-top:8px; line-height:1.6;">
+          <p style="margin-bottom:6px;">
+            <strong>Plan Tier:</strong> <span style="color:#ff4444; font-weight:700;">${plan.name}</span>
+          </p>
+          <p style="margin-bottom:6px;">
+            <strong>Price:</strong> <span style="color:#ffffff; font-weight:700;">$${price}/month</span> (${cycleLabel})
+          </p>
+          <p style="margin-bottom:0; color:#94a3b8; font-size:0.85rem;">
+            Includes 14-day free trial. Do you want to proceed and activate this plan?
+          </p>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Select Plan',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#ff2a2a',
+      cancelButtonColor: '#2b354f',
+      background: '#10141d',
+      color: '#ffffff',
+      reverseButtons: true,
+      focusConfirm: true,
+    });
+
+    if (result.isConfirmed) {
+      await handleSelectPlan(plan);
+    }
+  };
 
   const handleSelectPlan = async (plan) => {
     setActivatingPlanId(plan.id);
@@ -117,9 +275,11 @@ const GymOwnerSelectPlan = () => {
       })
     );
 
+    const gymTitle = user?.gymName || user?.gym?.name || user?.name || 'Your Gym';
+
     await Swal.fire({
       title: `${plan.name} Activated!`,
-      text: `Welcome! Your gym workspace has been configured with ${plan.name} limits.`,
+      text: `Welcome ${gymTitle}! Your gym workspace has been configured with ${plan.name} limits and 14-Day Free Trial.`,
       icon: 'success',
       confirmButtonText: 'Enter Gym Dashboard',
       confirmButtonColor: '#ff2a2a',
@@ -203,9 +363,30 @@ const GymOwnerSelectPlan = () => {
 
         {/* Pricing Cards Grid */}
         <div className="row g-4 justify-content-center align-items-stretch">
-          {PLANS.map((plan) => {
-            const price = billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
+          {plansList.map((plan) => {
+            const price = billingCycle === 'monthly' ? (plan.monthlyPrice || plan.price) : (plan.yearlyPrice || plan.price);
             const isActivating = activatingPlanId === plan.id;
+            const durationSuffix = plan.durationDays
+              ? plan.durationDays === 30
+                ? '/30 Days'
+                : `/${plan.durationDays} Days`
+              : '/mo';
+
+            const branchesText =
+              plan.maxBranches !== undefined && plan.maxBranches !== null
+                ? plan.maxBranches >= 50
+                  ? 'Unlimited Locations'
+                  : `${plan.maxBranches} Location${plan.maxBranches > 1 ? 's' : ''}`
+                : plan.durationDays
+                ? `${plan.durationDays} Days Pass`
+                : 'All Locations';
+
+            const membersText =
+              plan.maxMembers !== undefined && plan.maxMembers !== null
+                ? plan.maxMembers >= 10000
+                  ? 'Unlimited Members'
+                  : `Up to ${Number(plan.maxMembers).toLocaleString()} Members`
+                : 'Turnstile RFID Sync';
 
             return (
               <div key={plan.id} className="col-12 col-md-6 col-lg-4">
@@ -247,7 +428,7 @@ const GymOwnerSelectPlan = () => {
                     <div className={`plan-price my-3 ${plan.isPopular ? 'text-red' : 'text-white'}`}>
                       ${price}
                       <span className="text-silver fs-6">
-                        /mo {billingCycle === 'yearly' && '(billed annually)'}
+                        {durationSuffix} {billingCycle === 'yearly' && !plan.durationDays && '(billed annually)'}
                       </span>
                     </div>
 
@@ -259,16 +440,7 @@ const GymOwnerSelectPlan = () => {
                       }`}
                       style={plan.isPopular ? { background: 'rgba(255,42,42,0.08)' } : {}}
                     >
-                      📍{' '}
-                      <strong>
-                        {plan.maxBranches === 999 ? 'Unlimited' : `${plan.maxBranches}`} Location
-                        {plan.maxBranches > 1 ? 's' : ''}
-                      </strong>{' '}
-                      •{' '}
-                      <strong>
-                        {plan.maxMembers === 999999 ? 'Unlimited' : `Up to ${plan.maxMembers.toLocaleString()}`}{' '}
-                        Members
-                      </strong>
+                      📍 <strong>{branchesText}</strong> • <strong>{membersText}</strong>
                     </div>
 
                     <ul className="plan-features">
@@ -284,7 +456,7 @@ const GymOwnerSelectPlan = () => {
                   <div className="mt-4 pt-2">
                     <button
                       type="button"
-                      onClick={() => handleSelectPlan(plan)}
+                      onClick={() => confirmAndSelectPlan(plan)}
                       disabled={activatingPlanId !== null}
                       className={`w-100 ${plan.isPopular ? 'btn-red' : 'btn-outline-red'}`}
                       style={{ padding: '12px 20px', fontWeight: '700' }}

@@ -3,8 +3,8 @@ import { useSelector } from 'react-redux';
 import { Navigate } from 'react-router-dom';
 
 export const GuestRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useSelector((state) => state.auth);
-  const { isAuthenticated: isAdminAuth, loading: adminLoading } = useSelector((state) => state.adminAuth);
+  const { isAuthenticated, user, loading } = useSelector((state) => state.auth);
+  const { isAuthenticated: isAdminAuth, admin, loading: adminLoading } = useSelector((state) => state.adminAuth);
 
   // If currently verifying existing tokens from localStorage
   if (loading || adminLoading) {
@@ -15,19 +15,18 @@ export const GuestRoute = ({ children }) => {
       >
         <div className="spinner-border text-danger" role="status" style={{ width: '2.5rem', height: '2.5rem' }}></div>
         <p className="mt-3 text-secondary small" style={{ letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          Verifying session...
+          Loading workspace...
         </p>
       </div>
     );
   }
 
-  if (isAdminAuth) {
+  if (isAdminAuth || admin || user?.role === 'SUPER_ADMIN') {
     return <Navigate to="/admin/dashboard" replace />;
   }
 
-  if (isAuthenticated) {
-    const hasPlan = Boolean(localStorage.getItem('gymSelectedPlan'));
-    return <Navigate to={hasPlan ? "/dashboard" : "/select-plan"} replace />;
+  if (isAuthenticated || user) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;

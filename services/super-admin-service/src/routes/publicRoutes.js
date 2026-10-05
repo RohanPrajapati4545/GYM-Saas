@@ -3,9 +3,12 @@ const router = express.Router();
 const { getLandingCMS } = require("../controllers/cmsController");
 const { getSettings } = require("../controllers/settingsController");
 const { createInquiry } = require("../controllers/inquiryController");
+const { getPlans } = require("../controllers/planController");
 
 router.get("/landing", getLandingCMS);
 router.get("/settings", getSettings);
+router.get("/plans", getPlans);
 router.post("/inquiries", createInquiry);
 
 module.exports = router;
+

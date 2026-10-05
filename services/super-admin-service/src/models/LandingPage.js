@@ -3,14 +3,14 @@ const mongoose = require("mongoose");
 const landingPageSchema = new mongoose.Schema(
   {
     hero: {
-      badge: { type: String, default: "RK PRAJAPATI FITNESS PLATFORM" },
-      title: { type: String, default: "BE STRONG" },
-      subtitle: { type: String, default: "Best GYM & Fitness Center Build Your Health. Next-gen multi-branch management platform." },
-      primaryButtonText: { type: String, default: "JOIN US NOW" },
-      primaryButtonLink: { type: String, default: "/register" },
-      secondaryButtonText: { type: String, default: "WATCH VIDEO" },
-      secondaryButtonLink: { type: String, default: "#video" },
-      heroImage: { type: String, default: "/hero-athlete.jpg" },
+      badge: { type: String, default: "ALL-IN-ONE GYM MANAGEMENT SAAS" },
+      title: { type: String, default: "One Powerful Dashboard." },
+      subtitle: { type: String, default: "Stop juggling spreadsheets, WhatsApp messages, and multiple tools. GymSaaS brings your entire gym operation together in one simple platform." },
+      primaryButtonText: { type: String, default: "Book Free Live Demo" },
+      primaryButtonLink: { type: String, default: "#contact" },
+      secondaryButtonText: { type: String, default: "Explore Platform" },
+      secondaryButtonLink: { type: String, default: "#features" },
+      heroImage: { type: String, default: "/slide-1.jpg" },
     },
     features: [
       {

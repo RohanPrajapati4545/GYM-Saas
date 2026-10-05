@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { setCredentials, setUser } from '../../store/slices/authSlice';
 import api from '../../services/api';
 import gymOwnerApi from '../../services/gymOwnerApi';
+import adminApi from '../../services/adminApi';
 import {
   Lock,
   Mail,
@@ -25,7 +26,7 @@ import Swal from 'sweetalert2';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const PLANS = [
+const DEFAULT_PLANS = [
   {
     id: 'STARTER',
     name: 'Starter Gym',
@@ -87,13 +88,136 @@ const PLANS = [
   },
 ];
 
+const normalizeModalPlan = (p, idx) => {
+  const isFeatured =
+    p.isPopular ||
+    p.isFeatured ||
+    idx === 1 ||
+    p.name?.toLowerCase().includes('growth') ||
+    p.name?.toLowerCase().includes('pro') ||
+    p.name?.toLowerCase().includes('premium');
+  const monthlyPrice = Number(p.monthlyPrice || p.price) || 49;
+  const isLongDuration = (p.durationDays && p.durationDays >= 365) || p.type === 'ANNUAL';
+  const yearlyPrice = Number(p.yearlyPrice) || (isLongDuration ? monthlyPrice : Math.round(monthlyPrice * 0.8));
+
+  const features = Array.isArray(p.features)
+    ? p.features
+    : typeof p.features === 'string'
+    ? p.features.split(',').map((s) => s.trim()).filter(Boolean)
+    : ['Full Gym Floor Access', 'Locker Room & Shower', 'Branded Member App'];
+
+  return {
+    id: p._id || p.id || `plan_${idx}`,
+    name: p.name || 'Standard Gym',
+    tagline:
+      p.tagline ||
+      (p.type
+        ? `${p.type} TIER`
+        : isFeatured
+        ? 'MULTI-BRANCH & BIOMETRIC GATE'
+        : idx === 0
+        ? 'SINGLE BOUTIQUE CLUB'
+        : 'FRANCHISE & NETWORKS'),
+    description: p.description || 'All-in-one gym management & attendance solution.',
+    monthlyPrice,
+    yearlyPrice,
+    price: monthlyPrice,
+    durationDays: p.durationDays,
+    maxBranches: p.maxBranches !== undefined ? p.maxBranches : 5,
+    maxMembers: p.maxMembers !== undefined ? p.maxMembers : 1500,
+    features,
+    buttonText: p.buttonText || `Select ${p.name || 'Plan'}`,
+    isPopular: isFeatured,
+  };
+};
+
+const getStoredCustomPlans = () => {
+  try {
+    const custom = localStorage.getItem('gym_custom_plans');
+    if (custom) {
+      const parsed = JSON.parse(custom);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter((p) => p.isActive !== false);
+    }
+    const globalPlans = localStorage.getItem('gym_membership_plans_global');
+    if (globalPlans) {
+      const parsed = JSON.parse(globalPlans);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed.filter((p) => p.isActive !== false);
+    }
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('gym_membership_plans_') || key.startsWith('admin_custom_plans'))) {
+        const val = localStorage.getItem(key);
+        if (val) {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.filter((p) => p.isActive !== false);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error reading stored custom plans:', e);
+  }
+  return [];
+};
+
 const AuthRegisterModal = ({ isOpen, onClose, onSwitchToLogin, preselectedPlan = null }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { settings } = useSelector((state) => state.settings || {});
+  const { user } = useSelector((state) => state.auth || {});
 
   const [currentStep, setCurrentStep] = useState('REGISTER'); // 'REGISTER' | 'SELECT_PLAN'
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [activatingPlanId, setActivatingPlanId] = useState(null);
+
+  const [plansList, setPlansList] = useState(() => {
+    const stored = getStoredCustomPlans();
+    if (stored.length > 0) {
+      return stored.map((p, idx) => normalizeModalPlan(p, idx));
+    }
+    return DEFAULT_PLANS;
+  });
+
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const res = await adminApi.get('/api/public/plans');
+        if (res.data?.data && Array.isArray(res.data.data)) {
+          const active = res.data.data.filter((p) => p.isActive !== false);
+          const stored = getStoredCustomPlans();
+          const combined = stored.length > 0 ? stored : active;
+          if (combined.length > 0) {
+            setPlansList(combined.map((p, idx) => normalizeModalPlan(p, idx)));
+          }
+        }
+      } catch (err) {
+        const stored = getStoredCustomPlans();
+        if (stored.length > 0) {
+          setPlansList(stored.map((p, idx) => normalizeModalPlan(p, idx)));
+        }
+      }
+    };
+
+    fetchPlans();
+
+    const handlePlansUpdated = () => {
+      const stored = getStoredCustomPlans();
+      if (stored.length > 0) {
+        setPlansList(stored.map((p, idx) => normalizeModalPlan(p, idx)));
+      }
+    };
+
+    window.addEventListener('storage', handlePlansUpdated);
+    window.addEventListener('gymPlansUpdated', handlePlansUpdated);
+    window.addEventListener('adminPlansUpdated', handlePlansUpdated);
+
+    return () => {
+      window.removeEventListener('storage', handlePlansUpdated);
+      window.removeEventListener('gymPlansUpdated', handlePlansUpdated);
+      window.removeEventListener('adminPlansUpdated', handlePlansUpdated);
+    };
+  }, []);
 
   const [formData, setFormData] = useState({
     // Basic Account Details
@@ -264,24 +388,30 @@ const AuthRegisterModal = ({ isOpen, onClose, onSwitchToLogin, preselectedPlan =
 
         // 2. Save Gym Details in Gym Owner Service
         try {
-          await gymOwnerApi.put(
-            '/api/owner/gym/profile',
-            {
-              name: gymName.trim(),
-              email: gymEmail.trim() || email.trim().toLowerCase(),
-              phone: gymPhone.trim() || phone.trim(),
-              address: gymAddress.trim(),
-              city: city.trim(),
-              state: state.trim(),
-              pincode: pincode.trim(),
-              ownerName: name.trim(),
-              ownerPhone: phone.trim(),
-              ownerEmail: email.trim().toLowerCase(),
-            },
-            {
-              headers: { Authorization: `Bearer ${token}` },
-            }
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 4000)
           );
+          await Promise.race([
+            gymOwnerApi.put(
+              '/api/owner/gym/profile',
+              {
+                name: gymName.trim(),
+                email: gymEmail.trim() || email.trim().toLowerCase(),
+                phone: gymPhone.trim() || phone.trim(),
+                address: gymAddress.trim(),
+                city: city.trim(),
+                state: state.trim(),
+                pincode: pincode.trim(),
+                ownerName: name.trim(),
+                ownerPhone: phone.trim(),
+                ownerEmail: email.trim().toLowerCase(),
+              },
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              }
+            ),
+            timeoutPromise,
+          ]);
         } catch (gymErr) {
           console.warn('Gym profile save note:', gymErr);
         }
@@ -298,7 +428,7 @@ const AuthRegisterModal = ({ isOpen, onClose, onSwitchToLogin, preselectedPlan =
 
         if (chosenPlan && (chosenPlan.name || chosenPlan.planName || chosenPlan.id)) {
           const matchedPlan =
-            PLANS.find(
+            plansList.find(
               (p) =>
                 p.id?.toLowerCase() === (chosenPlan.id || '').toLowerCase() ||
                 p.name?.toLowerCase() === (chosenPlan.name || chosenPlan.planName || '').toLowerCase() ||
@@ -321,6 +451,45 @@ const AuthRegisterModal = ({ isOpen, onClose, onSwitchToLogin, preselectedPlan =
         err.message || err.response?.data?.message || 'Registration failed. Please try again.';
       setError(errorMessage);
       setIsSubmitting(false);
+    }
+  };
+
+  const confirmAndActivatePlan = async (plan) => {
+    const planTitle = plan?.name || plan?.planName || 'Growth Pro';
+    const monthlyPrice = plan?.monthlyPrice || plan?.price || 49;
+    const yearlyPrice = plan?.yearlyPrice || plan?.price || 39;
+    const price = billingCycle === 'monthly' ? monthlyPrice : yearlyPrice;
+    const cycleLabel = billingCycle === 'monthly' ? 'Monthly' : 'Annual (20% OFF)';
+
+    const result = await Swal.fire({
+      title: `Select ${planTitle}?`,
+      html: `
+        <div style="font-size:0.95rem; color:#cbd5e1; margin-top:8px; line-height:1.6;">
+          <p style="margin-bottom:6px;">
+            <strong>Plan Tier:</strong> <span style="color:#ff4444; font-weight:700;">${planTitle}</span>
+          </p>
+          <p style="margin-bottom:6px;">
+            <strong>Price:</strong> <span style="color:#ffffff; font-weight:700;">$${price}/month</span> (${cycleLabel})
+          </p>
+          <p style="margin-bottom:0; color:#94a3b8; font-size:0.85rem;">
+            Includes 14-day free trial. Do you want to proceed and activate this plan?
+          </p>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Select Plan',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#ff2a2a',
+      cancelButtonColor: '#2b354f',
+      background: '#10141d',
+      color: '#ffffff',
+      reverseButtons: true,
+      focusConfirm: true,
+    });
+
+    if (result.isConfirmed) {
+      await handleActivatePlan(plan);
     }
   };
 
@@ -366,10 +535,13 @@ const AuthRegisterModal = ({ isOpen, onClose, onSwitchToLogin, preselectedPlan =
     setActivatingPlanId(null);
     onClose();
 
+    const gymTitle = formData.gymName?.trim() || user?.gymName || user?.gym?.name || 'Your Gym';
+    const platformTitle = settings?.websiteTitle || 'Ro-Fitness';
+
     try {
       await Swal.fire({
         title: `${planTitle} Activated!`,
-        text: `Welcome to Ro-Fitness SaaS! Your gym facility workspace is live with 14-Day Free Trial.`,
+        text: `Welcome ${gymTitle}! Your gym facility workspace is now active on ${platformTitle} with a 14-Day Free Trial.`,
         icon: 'success',
         confirmButtonText: 'Enter Gym Dashboard',
         confirmButtonColor: '#ff2a2a',
@@ -384,20 +556,20 @@ const AuthRegisterModal = ({ isOpen, onClose, onSwitchToLogin, preselectedPlan =
   };
 
   return (
-    <div className="auth-modal-backdrop" onClick={onClose}>
+    <div className="auth-modal-backdrop p-2 p-md-3" onClick={onClose}>
       <div
         className="auth-modal-window position-relative"
         style={{
-          maxWidth: currentStep === 'SELECT_PLAN' ? '920px' : '740px',
+          maxWidth: currentStep === 'SELECT_PLAN' ? '880px' : '720px',
           width: '100%',
-          maxHeight: '92vh',
+          maxHeight: '90vh',
           overflowY: 'auto',
           backgroundColor: '#0f1420',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '20px',
-          padding: currentStep === 'SELECT_PLAN' ? '2.2rem 2rem' : '2rem 2.2rem',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: '16px',
+          padding: currentStep === 'SELECT_PLAN' ? '1.25rem 1.4rem' : '1.75rem 2rem',
           boxShadow: '0 25px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(255, 42, 42, 0.15)',
-          transition: 'all 0.3s ease',
+          transition: 'all 0.25s ease',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -794,25 +966,25 @@ const AuthRegisterModal = ({ isOpen, onClose, onSwitchToLogin, preselectedPlan =
         {/* ==================== STEP 2: PLAN SELECTION POPUP ==================== */}
         {currentStep === 'SELECT_PLAN' && (
           <div className="text-center">
-            <div className="d-flex align-items-center justify-content-center gap-2 mb-1">
-              <Sparkles size={20} className="text-red" />
-              <span className="badge bg-danger text-white px-3 py-1 text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.06em' }}>
+            <div className="d-flex align-items-center justify-content-center gap-1 mb-1">
+              <Sparkles size={16} className="text-red" />
+              <span className="badge bg-danger text-white px-2.5 py-0.5 text-uppercase" style={{ fontSize: '0.68rem', letterSpacing: '0.05em' }}>
                 Step 2 of 2: Select SaaS Tier
               </span>
             </div>
-            <h3 className="fw-bold text-white fs-3 mt-2 mb-1">
+            <h3 className="fw-bold text-white fs-4 mt-1 mb-1">
               CHOOSE YOUR <span className="text-red">SUBSCRIPTION PLAN</span>
             </h3>
-            <p className="text-muted small mb-3">
+            <p className="text-muted small mb-2 mb-md-3" style={{ fontSize: '0.78rem' }}>
               All plans include a <strong>14-Day Full Free Trial</strong>. No immediate card charge.
             </p>
 
             {/* Billing Toggle */}
-            <div className="d-flex justify-content-center align-items-center mb-4 gap-2">
+            <div className="d-flex justify-content-center align-items-center mb-2.5 mb-md-3 gap-2">
               <button
                 type="button"
                 className={`btn btn-sm ${billingCycle === 'monthly' ? 'btn-danger' : 'btn-dark text-silver'}`}
-                style={{ borderRadius: '20px', padding: '5px 16px', fontSize: '0.78rem', fontWeight: '600' }}
+                style={{ borderRadius: '20px', padding: '4px 14px', fontSize: '0.75rem', fontWeight: '600' }}
                 onClick={() => setBillingCycle('monthly')}
               >
                 Monthly
@@ -820,7 +992,7 @@ const AuthRegisterModal = ({ isOpen, onClose, onSwitchToLogin, preselectedPlan =
               <button
                 type="button"
                 className={`btn btn-sm ${billingCycle === 'yearly' ? 'btn-danger' : 'btn-dark text-silver'}`}
-                style={{ borderRadius: '20px', padding: '5px 16px', fontSize: '0.78rem', fontWeight: '600' }}
+                style={{ borderRadius: '20px', padding: '4px 14px', fontSize: '0.75rem', fontWeight: '600' }}
                 onClick={() => setBillingCycle('yearly')}
               >
                 Annual Billing
@@ -831,15 +1003,20 @@ const AuthRegisterModal = ({ isOpen, onClose, onSwitchToLogin, preselectedPlan =
             </div>
 
             {/* Plans Grid */}
-            <div className="row g-3 text-start">
-              {PLANS.map((plan) => {
+            <div className="row g-2 g-md-3 text-start">
+              {plansList.map((plan) => {
                 const isActivating = activatingPlanId === plan.id;
-                const price = billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
+                const price = billingCycle === 'monthly' ? (plan.monthlyPrice || plan.price) : (plan.yearlyPrice || plan.price);
+                const durationSuffix = plan.durationDays
+                  ? plan.durationDays === 30
+                    ? '/30 Days'
+                    : `/${plan.durationDays} Days`
+                  : '/mo';
 
                 return (
                   <div key={plan.id} className="col-12 col-md-4">
                     <div
-                      className={`h-100 d-flex flex-column justify-content-between p-3 rounded position-relative ${
+                      className={`h-100 d-flex flex-column justify-content-between p-2.5 p-lg-3 rounded-3 position-relative ${
                         plan.isPopular ? 'border-danger' : 'border-secondary'
                       }`}
                       style={{
@@ -849,18 +1026,18 @@ const AuthRegisterModal = ({ isOpen, onClose, onSwitchToLogin, preselectedPlan =
                         border: plan.isPopular
                           ? '1.5px solid #ff2a2a'
                           : '1px solid rgba(255, 255, 255, 0.1)',
-                        boxShadow: plan.isPopular ? '0 0 20px rgba(255,42,42,0.2)' : 'none',
+                        boxShadow: plan.isPopular ? '0 0 16px rgba(255,42,42,0.2)' : 'none',
                       }}
                     >
                       {plan.isPopular && (
                         <span
-                          className="badge position-absolute top-0 end-0 m-2 px-2 py-1"
+                          className="badge position-absolute top-0 end-0 m-2 px-2 py-0.5"
                           style={{
                             background: '#ff2a2a',
                             color: '#fff',
-                            fontSize: '0.62rem',
+                            fontSize: '0.6rem',
                             fontWeight: '800',
-                            borderRadius: '12px',
+                            borderRadius: '10px',
                           }}
                         >
                           🔥 POPULAR
@@ -868,23 +1045,23 @@ const AuthRegisterModal = ({ isOpen, onClose, onSwitchToLogin, preselectedPlan =
                       )}
 
                       <div>
-                        <span className="text-muted fw-bold d-block" style={{ fontSize: '0.68rem', letterSpacing: '0.06em' }}>
+                        <span className="text-muted fw-bold d-block" style={{ fontSize: '0.62rem', letterSpacing: '0.06em' }}>
                           {plan.tagline}
                         </span>
-                        <h4 className="fw-bold text-white fs-5 mt-1 mb-1">{plan.name}</h4>
-                        <p className="text-muted mb-2" style={{ fontSize: '0.74rem', minHeight: '34px' }}>
+                        <h4 className="fw-bold text-white fs-6 mt-0.5 mb-1">{plan.name}</h4>
+                        <p className="text-muted mb-1.5" style={{ fontSize: '0.7rem', minHeight: '26px', lineHeight: '1.25' }}>
                           {plan.description}
                         </p>
 
-                        <div className="my-2">
-                          <span className="fs-3 fw-bold text-white">${price}</span>
-                          <span className="text-muted small">/mo</span>
+                        <div className="my-1.5">
+                          <span className="fs-4 fw-bold text-white">${price}</span>
+                          <span className="text-muted small" style={{ fontSize: '0.72rem' }}>{durationSuffix}</span>
                         </div>
 
-                        <ul className="list-unstyled mb-3" style={{ fontSize: '0.75rem' }}>
+                        <ul className="list-unstyled mb-2" style={{ fontSize: '0.7rem' }}>
                           {plan.features.map((feat, fidx) => (
-                            <li key={fidx} className="d-flex align-items-center gap-2 mb-1 text-silver">
-                              <CheckCircle2 size={13} className="text-red flex-shrink-0" />
+                            <li key={fidx} className="d-flex align-items-center gap-1.5 mb-1 text-silver">
+                              <CheckCircle2 size={12} className="text-red flex-shrink-0" />
                               <span>{feat}</span>
                             </li>
                           ))}
@@ -893,22 +1070,22 @@ const AuthRegisterModal = ({ isOpen, onClose, onSwitchToLogin, preselectedPlan =
 
                       <button
                         type="button"
-                        onClick={() => handleActivatePlan(plan)}
+                        onClick={() => confirmAndActivatePlan(plan)}
                         disabled={isActivating || activatingPlanId !== null}
-                        className={`w-100 py-2 d-flex align-items-center justify-content-center gap-2 rounded ${
+                        className={`w-100 py-1.5 d-flex align-items-center justify-content-center gap-1.5 rounded ${
                           plan.isPopular ? 'btn-red' : 'btn-outline-red'
                         }`}
-                        style={{ fontSize: '0.82rem', fontWeight: '600' }}
+                        style={{ fontSize: '0.78rem', fontWeight: '600' }}
                       >
                         {isActivating ? (
                           <>
-                            <Loader2 size={14} className="animate-spin" />
+                            <Loader2 size={13} className="animate-spin" />
                             <span>Activating...</span>
                           </>
                         ) : (
                           <>
-                            <span>{plan.buttonText}</span>
-                            <ArrowRight size={14} />
+                            <span>{plan.buttonText || `Select ${plan.name}`}</span>
+                            <ArrowRight size={13} />
                           </>
                         )}
                       </button>

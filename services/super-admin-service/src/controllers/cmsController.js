@@ -9,14 +9,14 @@ const getLandingCMS = async (req, res) => {
       const activePlans = await Plan.find({ isActive: true }).limit(3);
       cms = new LandingPage({
         hero: {
-          badge: "NEXT-GEN GYM SAAS ARCHITECTURE",
-          title: "BE STRONG",
-          subtitle: "Best GYM & Fitness Center Build Your Health. Next-gen multi-branch management platform.",
-          primaryButtonText: "JOIN US NOW",
-          primaryButtonLink: "/register",
-          secondaryButtonText: "WATCH VIDEO",
-          secondaryButtonLink: "#video",
-          heroImage: "/hero-athlete.png",
+          badge: "ALL-IN-ONE GYM MANAGEMENT SAAS",
+          title: "One Powerful Dashboard.",
+          subtitle: "Stop juggling spreadsheets, WhatsApp messages, and multiple tools. GymSaaS brings your entire gym operation together in one simple platform.",
+          primaryButtonText: "Book Free Live Demo",
+          primaryButtonLink: "#contact",
+          secondaryButtonText: "Explore Platform",
+          secondaryButtonLink: "#features",
+          heroImage: "/slide-1.jpg",
         },
         features: [
           {

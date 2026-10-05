@@ -58,8 +58,8 @@ const AdminLayout = () => {
   ];
 
   return (
-    <div className="d-flex min-vh-100" style={{ backgroundColor: '#08090d', color: '#ffffff' }}>
-      <aside className="d-none d-lg-flex flex-column border-end flex-shrink-0" style={{ width: '270px', backgroundColor: '#0c0e14', borderColor: 'rgba(255,255,255,0.08)' }}>
+    <div className="d-flex vh-100 overflow-hidden" style={{ backgroundColor: '#08090d', color: '#ffffff' }}>
+      <aside className="d-none d-lg-flex flex-column border-end flex-shrink-0 h-100" style={{ width: '270px', backgroundColor: '#0c0e14', borderColor: 'rgba(255,255,255,0.08)' }}>
         <div className="p-3 border-bottom" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
           <DynamicLogo size="medium" subtitle="SUPER ADMIN PORTAL" />
         </div>

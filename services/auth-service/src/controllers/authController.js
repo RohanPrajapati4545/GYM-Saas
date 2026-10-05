@@ -11,7 +11,7 @@ const generateToken = (user) => {
       email: user.email,
       name: user.name,
       role: user.role,
-      tenantId: user.tenantId,
+      tenantId: user.te=nantId,
       branchId: user.branchId,
     },
     process.env.JWT_SECRET,
@@ -73,9 +73,11 @@ const register = async (req, res) => {
       phone: phone ? String(phone).trim() : "",
       password: hashedPassword,
       role: "GYM_OWNER",
-      tenantId: null,
       branchId: null,
     });
+
+    // Self-assign tenantId for GYM_OWNER (Owner is their own tenant root)
+    user.tenantId = user._id;
 
     await user.save();
 
